@@ -8,3 +8,6 @@ node_modules
 uploads/
 server.log
 cookies.txt
+backup/
+frontend/backup/
+server/backup/
