@@ -85,8 +85,8 @@ router.post('/seed', async (req, res) => {
     if (existingCount > 0) {
       return res.status(400).json({ error: 'Menu already has items. Use /reset-seed to force reset.' });
     }
-    await MenuItem.insertMany(items);
-    res.json({ message: 'Menu seeded!' });
+    // Seed functionality removed - use admin panel to add items manually
+    res.status(400).json({ error: 'Seeding disabled. Use admin panel to add menu items.' });
   } catch (error) {
     console.error('Menu seeding error:', error);
     res.status(500).json({ error: 'Failed to seed menu' });
@@ -97,8 +97,8 @@ router.post('/seed', async (req, res) => {
 router.post('/reset-seed', async (req, res) => {
   try {
     await MenuItem.deleteMany();
-    await MenuItem.insertMany(items);
-    res.json({ message: 'Menu reset and seeded!' });
+    // Seed functionality removed - use admin panel to add items manually
+    res.json({ message: 'Menu cleared. Use admin panel to add new items.' });
   } catch (error) {
     console.error('Menu reset seeding error:', error);
     res.status(500).json({ error: 'Failed to reset and seed menu' });
