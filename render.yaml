@@ -1,0 +1,59 @@
+services:
+  # Backend API Service
+  - type: web
+    name: qahwatal-emarat-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false # Set this in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: ADMIN_USERNAME
+        value: welcome
+      - key: ADMIN_PASSWORD
+        sync: false # Set this in Render dashboard (use hashed password)
+      - key: PASSWORD_MIN_LENGTH
+        value: 8
+      - key: PASSWORD_REQUIRE_UPPERCASE
+        value: false
+      - key: PASSWORD_REQUIRE_LOWERCASE
+        value: true
+      - key: PASSWORD_REQUIRE_NUMBERS
+        value: true
+      - key: PASSWORD_REQUIRE_SYMBOLS
+        value: true
+      - key: ALLOWED_ORIGINS
+        sync: false # Set this to your frontend URL
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: FORCE_HTTPS
+        value: true
+
+  # Frontend Service
+  - type: web
+    name: qahwatal-emarat-frontend
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npx serve -s build -l 3000
+    envVars:
+      - key: REACT_APP_API_BASE
+        sync: false # Set this to your API service URL
+    buildFilter:
+      paths:
+        - frontend/**
+
+# Database (MongoDB)
+databases:
+  - name: qahwatal-emarat-db
+    databaseName: qahwatalemarat
+    user: qahwatalemarat
