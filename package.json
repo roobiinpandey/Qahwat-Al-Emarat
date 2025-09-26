@@ -1,0 +1,14 @@
+{
+  "name": "qahwatal-emarat",
+  "version": "1.0.0",
+  "description": "Qahwatal Emarat Cafe Management System",
+  "scripts": {
+    "backup": "./backup.sh",
+    "backup:full": "tar -czf backup_$(date +%Y%m%d_%H%M%S).tar.gz --exclude='node_modules' --exclude='.git' --exclude='*.log' --exclude='.DS_Store' --exclude='backup' --exclude='build' .",
+    "backup:quick": "tar -cf backup.tar --exclude='node_modules' --exclude='.git' --exclude='*.log' --exclude='.DS_Store' --exclude='backup' --exclude='build' ."
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}

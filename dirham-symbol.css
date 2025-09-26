@@ -1,0 +1,31 @@
+/* UAE Dirham Symbol Font */
+/* Add this to your main CSS file (App.css, index.css, etc.) */
+
+@font-face {
+  font-family: 'UAESymbol';
+  src: url('./uae.symbol.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.dirham-symbol {
+  font-family: 'UAESymbol', sans-serif;
+  font-size: inherit;
+  color: inherit;
+  font-weight: bold;
+}
+
+/* Usage examples in CSS */
+.price-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.currency-primary {
+  color: #8B4513; /* Coffee brown */
+}
+
+.currency-accent {
+  color: #D2691E; /* Chocolate orange */
+}

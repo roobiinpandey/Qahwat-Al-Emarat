@@ -1,0 +1,27 @@
+{
+  "name": "qahwatal-emarat-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "backup": "mongodump --db qahwatalemarat --out ./backup/$(date +%Y%m%d_%H%M%S)",
+    "restore": "mongorestore --db qahwatalemarat ./backup/",
+    "seed": "node -e \"require('./routes/menu').seedMenu()\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.1.0",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.6.0",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
