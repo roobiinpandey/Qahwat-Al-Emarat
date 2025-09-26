@@ -36,7 +36,7 @@ This application is configured for deployment to [Render](https://render.com) us
 4. Set Environment Variables:
    ```
    NODE_ENV=production
-   MONGODB_URI=mongodb+srv://roobiinpandey_db_user:WuKbKFaznGK8HBTr@cluster0.xxxxx.mongodb.net/qahwatalemarat?retryWrites=true&w=majority
+   MONGODB_URI=mongodb+srv://roobiinpandey_db_user:WuKbKFaznGK8HBTr@qahwatalemarates.c5rwjak.mongodb.net/qahwatalemarat?retryWrites=true&w=majority&appName=QahwatAlemarates
    JWT_SECRET=your_secure_random_jwt_secret_here
    JWT_EXPIRE=7d
    ADMIN_USERNAME=welcome
