@@ -36,7 +36,7 @@ This application is configured for deployment to [Render](https://render.com) us
 4. Set Environment Variables:
    ```
    NODE_ENV=production
-   MONGODB_URI=mongodb+srv://roobiinpandey_db_user:WuKbKFaznGK8HBTr@qahwatalemarates.c5rwjak.mongodb.net/qahwatalemarat?retryWrites=true&w=majority&appName=QahwatAlemarates
+   MONGODB_URI=your_mongodb_connection_string_here
    JWT_SECRET=your_secure_random_jwt_secret_here
    JWT_EXPIRE=7d
    ADMIN_USERNAME=welcome
@@ -73,10 +73,35 @@ This application is configured for deployment to [Render](https://render.com) us
 
 5. Click "Create Web Service" or "Create Static Site"
 
+### Security Notes
+
+⚠️ **IMPORTANT**: Never commit real database credentials, API keys, or secrets to version control. Always use environment variables or secure secret management services.
+
+#### Getting Your MongoDB Connection String
+
+1. Go to your [MongoDB Atlas Dashboard](https://cloud.mongodb.com)
+2. Select your cluster
+3. Click "Connect" → "Connect your application"
+4. Choose "Node.js" as your driver
+5. Copy the connection string
+6. Replace `<username>`, `<password>`, and `<database>` with your actual values
+7. **Never** paste real credentials directly in code or documentation
+
+#### Environment Variables Setup
+
+Create environment variables in your Render service settings (not in code):
+
+- `MONGODB_URI`: Your complete MongoDB connection string
+- `JWT_SECRET`: A secure random string (minimum 32 characters)
+- `ADMIN_USERNAME`: Your admin username
+- `ADMIN_PASSWORD`: A bcrypt-hashed password (use online bcrypt generators)
+
 ### Default Admin Credentials
 
 - **Username**: `welcome`
 - **Password**: `admin123`
+
+**⚠️ Change these credentials immediately after first login!**
 
 ### Post-Deployment Configuration
 
