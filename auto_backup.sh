@@ -25,6 +25,41 @@ INCLUDE_DATABASE=true
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_NAME="qahwatalemarat_backup_${TIMESTAMP}"
 
+#!/bin/bash
+
+# QAHWAT AL EMARAT Project Auto Backup Script
+# Updated on: September 28, 2025
+# Version: 3.0 - Enhanced with cloud storage, notifications, and recovery procedures
+
+set -e  # Exit on any error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Default configuration
+BACKUP_DIR="../backups"
+MAX_BACKUPS=5
+COMPRESSION_LEVEL=6
+INCLUDE_DATABASE=true
+NOTIFICATION_WEBHOOK="${NOTIFICATION_WEBHOOK:-}"
+ENABLE_CLOUD_BACKUP="${ENABLE_CLOUD_BACKUP:-false}"
+
+# Cloud storage configuration
+AWS_S3_BUCKET="${AWS_S3_BUCKET:-}"
+AZURE_STORAGE_ACCOUNT="${AZURE_STORAGE_ACCOUNT:-}"
+AZURE_CONTAINER="${AZURE_CONTAINER:-qahwatalemarat-backups}"
+GCP_BUCKET="${GCP_BUCKET:-}"
+
+# Get current timestamp
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_NAME="qahwatalemarat_backup_${TIMESTAMP}"
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -44,15 +79,52 @@ while [[ $# -gt 0 ]]; do
             INCLUDE_DATABASE=false
             shift
             ;;
+        --enable-cloud)
+            ENABLE_CLOUD_BACKUP=true
+            shift
+            ;;
+        --notification-url=*)
+            NOTIFICATION_WEBHOOK="${1#*=}"
+            shift
+            ;;
+        --aws-s3-bucket=*)
+            AWS_S3_BUCKET="${1#*=}"
+            ENABLE_CLOUD_BACKUP=true
+            shift
+            ;;
+        --azure-account=*)
+            AZURE_STORAGE_ACCOUNT="${1#*=}"
+            ENABLE_CLOUD_BACKUP=true
+            shift
+            ;;
+        --gcp-bucket=*)
+            GCP_BUCKET="${1#*=}"
+            ENABLE_CLOUD_BACKUP=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [OPTIONS]"
             echo
+            echo "Enhanced Auto Backup Script for QAHWAT AL EMARAT"
+            echo
             echo "Options:"
-            echo "  --backup-dir=DIR     Backup directory (default: ../backups)"
-            echo "  --max-backups=N      Keep maximum N backups (default: 5)"
-            echo "  --compression=N      Compression level 1-9 (default: 6)"
-            echo "  --no-database        Skip database backup"
-            echo "  --help               Show this help"
+            echo "  --backup-dir=DIR        Backup directory (default: ../backups)"
+            echo "  --max-backups=N         Keep maximum N backups (default: 5)"
+            echo "  --compression=N         Compression level 1-9 (default: 6)"
+            echo "  --no-database           Skip database backup"
+            echo "  --enable-cloud          Enable cloud storage backup"
+            echo "  --notification-url=URL  Send notifications to webhook URL"
+            echo "  --aws-s3-bucket=BUCKET  Upload to AWS S3 bucket"
+            echo "  --azure-account=NAME    Upload to Azure Storage account"
+            echo "  --gcp-bucket=BUCKET     Upload to Google Cloud Storage bucket"
+            echo "  --help                  Show this help"
+            echo
+            echo "Environment variables:"
+            echo "  NOTIFICATION_WEBHOOK    Webhook URL for notifications"
+            echo "  ENABLE_CLOUD_BACKUP     Enable cloud backup (true/false)"
+            echo "  AWS_S3_BUCKET          AWS S3 bucket name"
+            echo "  AZURE_STORAGE_ACCOUNT  Azure Storage account name"
+            echo "  GCP_BUCKET             Google Cloud Storage bucket name"
             exit 0
             ;;
         *)
@@ -98,30 +170,72 @@ show_progress() {
     printf "] %d%%" $percentage
 }
 
-# Function to get user confirmation
-ask_permission() {
-    local message="$1"
-    local response
+# Function to send notification
+send_notification() {
+    local title="$1"
+    local message="$2"
 
-    echo
-    echo -e "${YELLOW}========================================${NC}"
-    echo -e "${YELLOW}    QAHWAT AL EMARAT PROJECT BACKUP${NC}"
-    echo -e "${YELLOW}========================================${NC}"
-    echo
-    echo -e "${BLUE}$message${NC}"
-    echo
-    read -p "Do you want to proceed? (y/N): " response
-    echo
+    if [ -n "$NOTIFICATION_WEBHOOK" ]; then
+        curl -X POST -H 'Content-type: application/json' \
+             --data "{\"text\":\"$title\\n$message\"}" \
+             "$NOTIFICATION_WEBHOOK" 2>/dev/null || true
+    fi
+}
 
-    case "$response" in
-        [yY][eE][sS]|[yY])
-            return 0
-            ;;
-        *)
-            print_warning "Backup cancelled by user."
-            exit 0
-            ;;
-    esac
+# Function to upload to cloud storage
+upload_to_cloud() {
+    local backup_file="$1"
+    local uploaded=false
+
+    if [ "$ENABLE_CLOUD_BACKUP" != "true" ]; then
+        return 0
+    fi
+
+    print_info "Uploading backup to cloud storage..."
+
+    # AWS S3
+    if [ -n "$AWS_S3_BUCKET" ] && command -v aws >/dev/null 2>&1; then
+        print_info "Uploading to AWS S3: $AWS_S3_BUCKET"
+        if aws s3 cp "$backup_file" "s3://$AWS_S3_BUCKET/"; then
+            print_success "Uploaded to AWS S3 successfully"
+            uploaded=true
+        else
+            print_warning "Failed to upload to AWS S3"
+        fi
+    fi
+
+    # Azure Blob Storage
+    if [ -n "$AZURE_STORAGE_ACCOUNT" ] && command -v az >/dev/null 2>&1; then
+        print_info "Uploading to Azure Blob Storage: $AZURE_STORAGE_ACCOUNT/$AZURE_CONTAINER"
+        if az storage blob upload --account-name "$AZURE_STORAGE_ACCOUNT" \
+                                --container-name "$AZURE_CONTAINER" \
+                                --name "$(basename "$backup_file")" \
+                                --file "$backup_file" >/dev/null 2>&1; then
+            print_success "Uploaded to Azure Blob Storage successfully"
+            uploaded=true
+        else
+            print_warning "Failed to upload to Azure Blob Storage"
+        fi
+    fi
+
+    # Google Cloud Storage
+    if [ -n "$GCP_BUCKET" ] && command -v gsutil >/dev/null 2>&1; then
+        print_info "Uploading to Google Cloud Storage: $GCP_BUCKET"
+        if gsutil cp "$backup_file" "gs://$GCP_BUCKET/"; then
+            print_success "Uploaded to Google Cloud Storage successfully"
+            uploaded=true
+        else
+            print_warning "Failed to upload to Google Cloud Storage"
+        fi
+    fi
+
+    if [ "$uploaded" = true ]; then
+        print_success "Cloud upload completed"
+        return 0
+    else
+        print_warning "No cloud storage configured or all uploads failed"
+        return 1
+    fi
 }
 
 # Function to check if we're in the right directory
@@ -369,6 +483,12 @@ This will create a complete backup of your project."
     if create_backup; then
         # Verify backup
         if verify_backup; then
+            # Upload to cloud storage
+            local cloud_upload_success=true
+            if ! upload_to_cloud "$backup_path"; then
+                cloud_upload_success=false
+            fi
+
             # Rotate old backups
             rotate_backups
 
@@ -382,14 +502,26 @@ This will create a complete backup of your project."
             if [[ "$db_backup_success" == "true" && "$INCLUDE_DATABASE" == "true" ]]; then
                 print_info "Database backup was also created."
             fi
+            if [[ "$cloud_upload_success" == "true" && "$ENABLE_CLOUD_BACKUP" == "true" ]]; then
+                print_info "Backup was uploaded to cloud storage."
+            fi
             print_info "Backup location: $BACKUP_DIR"
             print_info "You can now continue working without worry!"
+
+            # Send success notification
+            local notification_msg="Backup completed successfully\\nLocation: $BACKUP_DIR\\nSize: $backup_size"
+            if [[ "$cloud_upload_success" == "true" ]]; then
+                notification_msg="$notification_msg\\nCloud upload: ✅"
+            fi
+            send_notification "✅ Qahwat Al Emarat Backup Successful" "$notification_msg"
         else
             print_error "Backup verification failed. Please check the backup file."
+            send_notification "❌ Qahwat Al Emarat Backup Failed" "Backup verification failed for $backup_file"
             exit 1
         fi
     else
         print_error "Backup creation failed. Please try again."
+        send_notification "❌ Qahwat Al Emarat Backup Failed" "Backup creation failed"
         exit 1
     fi
 }
