@@ -38,16 +38,76 @@ services:
       - key: FORCE_HTTPS
         value: true
 
-  # Frontend Service
+services:
+  # Backend API Service
   - type: web
-    name: qahwatal-emarat-frontend
+    name: qahwatal-emarat-api
     runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # ⚠️  CRITICAL: Set this in Render dashboard with your secure MongoDB URI
+      - key: JWT_SECRET
+        sync: false # ⚠️  CRITICAL: Generate a secure random secret (min 32 chars)
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false # ⚠️  CRITICAL: Set hashed password in Render dashboard
+      - key: PASSWORD_MIN_LENGTH
+        value: 8
+      - key: PASSWORD_REQUIRE_UPPERCASE
+        value: false
+      - key: PASSWORD_REQUIRE_LOWERCASE
+        value: true
+      - key: PASSWORD_REQUIRE_NUMBERS
+        value: true
+      - key: PASSWORD_REQUIRE_SYMBOLS
+        value: true
+      - key: ALLOWED_ORIGINS
+        value: https://qahwatal-emarat.onrender.com,https://qahwatal-emarat-api.onrender.com
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: FORCE_HTTPS
+        value: true
+
+  # Frontend Static Site (RECOMMENDED for React apps - cheaper and faster)
+  - type: static
+    name: qahwatal-emarat-frontend
     rootDir: frontend
     buildCommand: npm install && npm run build
-    startCommand: npx serve -s build -l 3000
+    publishDir: build
     envVars:
       - key: REACT_APP_API_BASE
         value: https://qahwatal-emarat-api.onrender.com/api
+
+# Alternative: Web Service approach (more expensive, keeps Node.js runtime)
+# - type: web
+#   name: qahwatal-emarat-frontend
+#   runtime: node
+#   rootDir: frontend
+#   buildCommand: npm install && npm run build
+#   startCommand: npx serve -s build -l 3000
+#   envVars:
+#     - key: REACT_APP_API_BASE
+#       value: https://qahwatal-emarat-api.onrender.com/api
+
+# Alternative: Use Static Site for Frontend (Recommended for React apps)
+# - type: static
+#   name: qahwatal-emarat-frontend
+#   rootDir: frontend
+#   buildCommand: npm install && npm run build
+#   publishDir: build
+#   envVars:
+#     - key: REACT_APP_API_BASE
+#       value: https://qahwatal-emarat-api.onrender.com/api
 
 # Database (MongoDB Atlas recommended for production)
 # Note: Render provides MongoDB hosting, but MongoDB Atlas is recommended for better control
