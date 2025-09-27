@@ -88,3 +88,8 @@ cookies.txt
 
 # Server process files
 server/server.pid
+
+# Build directories
+build/
+frontend/build/
+dist/
