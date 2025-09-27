@@ -3,23 +3,22 @@ services:
   - type: web
     name: qahwatal-emarat-api
     runtime: node
+    rootDir: server
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
       - key: MONGODB_URI
-        sync: false # Set this in Render dashboard
+        sync: false # ⚠️  CRITICAL: Set this in Render dashboard with your secure MongoDB URI
       - key: JWT_SECRET
-        generateValue: true
+        sync: false # ⚠️  CRITICAL: Generate a secure random secret (min 32 chars)
       - key: JWT_EXPIRE
         value: 7d
       - key: ADMIN_USERNAME
-        value: welcome
+        value: admin
       - key: ADMIN_PASSWORD
-        sync: false # Set this in Render dashboard (use hashed password)
+        sync: false # ⚠️  CRITICAL: Set hashed password in Render dashboard
       - key: PASSWORD_MIN_LENGTH
         value: 8
       - key: PASSWORD_REQUIRE_UPPERCASE
@@ -31,7 +30,7 @@ services:
       - key: PASSWORD_REQUIRE_SYMBOLS
         value: true
       - key: ALLOWED_ORIGINS
-        sync: false # Set this to your frontend URL
+        sync: false # Set this to your frontend URL after deployment
       - key: RATE_LIMIT_WINDOW_MS
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
@@ -43,17 +42,16 @@ services:
   - type: web
     name: qahwatal-emarat-frontend
     runtime: node
+    rootDir: frontend
     buildCommand: npm install && npm run build
     startCommand: npx serve -s build -l 3000
     envVars:
       - key: REACT_APP_API_BASE
-        sync: false # Set this to your API service URL
-    buildFilter:
-      paths:
-        - frontend/**
+        sync: false # Set this to your API service URL after deployment
 
-# Database (MongoDB)
-databases:
-  - name: qahwatal-emarat-db
-    databaseName: qahwatalemarat
-    user: qahwatalemarat
+# Database (MongoDB Atlas recommended for production)
+# Note: Render provides MongoDB hosting, but MongoDB Atlas is recommended for better control
+# databases:
+#   - name: qahwatal-emarat-db
+#     databaseName: qahwatalemarat
+#     user: qahwatalemarat
