@@ -8,6 +8,10 @@ const { orderLimiter } = require('../middleware/rateLimiter');
 router.post('/', orderLimiter, [
   body('customerName').trim().isLength({ min: 1 }).withMessage('Customer name is required'),
   body('customerPhone').trim().isLength({ min: 1 }).withMessage('Customer phone is required'),
+  body('orderType').isIn(['dine-in', 'takeaway', 'delivery']).withMessage('Valid order type is required'),
+  body('tableNumber').optional({ nullable: true, checkFalsy: true }).trim().isLength({ min: 1 }).withMessage('Table number is required for dine-in orders'),
+  body('deliveryAddress').optional({ nullable: true, checkFalsy: true }).trim().isLength({ min: 1 }).withMessage('Delivery address is required for delivery orders'),
+  body('specialInstructions').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Special instructions cannot exceed 500 characters'),
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
   body('items.*.menuItem').isMongoId().withMessage('Valid menu item ID is required'),
   body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
@@ -17,18 +21,47 @@ router.post('/', orderLimiter, [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Additional custom validation for conditional fields
+    const { orderType, tableNumber, deliveryAddress } = req.body;
+    if (orderType === 'dine-in' && (!tableNumber || tableNumber.trim().length === 0)) {
+      return res.status(400).json({ error: 'Table number is required for dine-in orders' });
+    }
+    if (orderType === 'delivery' && (!deliveryAddress || deliveryAddress.trim().length === 0)) {
+      return res.status(400).json({ error: 'Delivery address is required for delivery orders' });
     }
 
     const { items, totalAmount, ...orderData } = req.body;
 
     // Validate that all menu items exist and get their current prices
     const MenuItem = require('../models/MenuItem');
+    const Inventory = require('../models/Inventory');
     const menuItemIds = items.map(item => item.menuItem);
     const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } });
 
     if (menuItems.length !== menuItemIds.length) {
       return res.status(400).json({ error: 'One or more menu items not found' });
+    }
+
+    // Check inventory availability for all items
+    const inventoryItems = await Inventory.find({ item: { $in: menuItemIds } });
+    const inventoryMap = new Map(inventoryItems.map(inv => [inv.item.toString(), inv]));
+
+    for (const item of items) {
+      const inventory = inventoryMap.get(item.menuItem);
+      if (inventory) {
+        const requiredQuantity = item.quantity;
+        if (inventory.currentStock < requiredQuantity) {
+          const menuItem = menuItems.find(mi => mi._id.toString() === item.menuItem);
+          const itemName = menuItem ? menuItem.name.EN : 'Unknown item';
+          return res.status(400).json({
+            error: `Insufficient stock for ${itemName}. Available: ${inventory.currentStock} ${inventory.unit}, Required: ${requiredQuantity}`
+          });
+        }
+      }
     }
 
     // Create order items with current prices
@@ -53,6 +86,15 @@ router.post('/', orderLimiter, [
 
     await order.save();
 
+    // Deduct inventory after successful order creation
+    for (const item of items) {
+      const inventory = inventoryMap.get(item.menuItem);
+      if (inventory) {
+        inventory.currentStock -= item.quantity;
+        await inventory.save();
+      }
+    }
+
     // Populate menu item details for response
     await order.populate('items.menuItem', 'name price');
 
@@ -60,6 +102,7 @@ router.post('/', orderLimiter, [
       message: 'Order placed successfully!',
       order: {
         _id: order._id,
+        orderNumber: order.orderNumber,
         customerName: order.customerName,
         total: order.total,
         status: order.status,

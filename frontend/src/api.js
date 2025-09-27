@@ -171,8 +171,18 @@ export async function placeOrder(orderData) {
   });
 
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Failed to place order');
+    let errorMessage = 'Failed to place order';
+    try {
+      const errorData = await res.json();
+      if (errorData.errors && Array.isArray(errorData.errors)) {
+        errorMessage = errorData.errors.map(err => err.msg).join(', ');
+      } else if (errorData.error) {
+        errorMessage = errorData.error;
+      }
+    } catch (e) {
+      // If we can't parse the error response, use the default message
+    }
+    throw new Error(errorMessage);
   }
 
   return res.json();
@@ -251,6 +261,127 @@ export async function getAdminHealth() {
   if (!res.ok) {
     const error = await res.json();
     throw new Error('Failed to fetch health status');
+  }
+
+  return res.json();
+}
+
+// Inventory functions
+export async function getInventory() {
+  const res = await fetch(`${API_BASE}/inventory`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to fetch inventory');
+  }
+
+  return res.json();
+}
+
+export async function getInventoryItem(itemId) {
+  const res = await fetch(`${API_BASE}/inventory/item/${itemId}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to fetch inventory item');
+  }
+
+  return res.json();
+}
+
+export async function createInventoryItem(inventoryData) {
+  const res = await fetch(`${API_BASE}/inventory`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify(inventoryData)
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to create inventory item');
+  }
+
+  return res.json();
+}
+
+export async function updateInventoryStock(id, adjustment, reason = '') {
+  const res = await fetch(`${API_BASE}/inventory/${id}/stock`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify({ adjustment, reason })
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to update inventory stock');
+  }
+
+  return res.json();
+}
+
+export async function bulkUpdateInventory(updates) {
+  const res = await fetch(`${API_BASE}/inventory/bulk-update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify({ updates })
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to bulk update inventory');
+  }
+
+  return res.json();
+}
+
+export async function deleteInventoryItem(id) {
+  const res = await fetch(`${API_BASE}/inventory/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error('Failed to delete inventory item');
+  }
+
+  return res.json();
+}
+
+export async function getInventoryAlerts() {
+  const res = await fetch(`${API_BASE}/inventory/alerts/low-stock`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to fetch inventory alerts');
+  }
+
+  return res.json();
+}
+
+export async function getInventoryStats() {
+  const res = await fetch(`${API_BASE}/inventory/stats/summary`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to fetch inventory stats');
   }
 
   return res.json();

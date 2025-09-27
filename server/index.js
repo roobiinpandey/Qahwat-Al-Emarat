@@ -221,11 +221,13 @@ app.get('/', (req, res) => {
 app.use('/api/v1/menu', require('./routes/menu'));
 app.use('/api/v1/order', require('./routes/order'));
 app.use('/api/v1/admin', authenticateToken, require('./routes/admin'));
+app.use('/api/v1/inventory', authenticateToken, require('./routes/inventory'));
 
 // Legacy API routes (for backward compatibility)
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/order', require('./routes/order'));
 app.use('/api/admin', authenticateToken, require('./routes/admin'));
+app.use('/api/inventory', authenticateToken, require('./routes/inventory'));
 
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => {

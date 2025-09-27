@@ -6,7 +6,7 @@ import * as api from './api';
 
 const categories = [
   { key: 'all', label: 'All Items' },
-  { key: 'coffee', label: 'Coffee' },
+  { key: 'coffee', label: 'Coffee Beans' },
   { key: 'tea', label: 'Tea' },
   { key: 'pastries', label: 'Pastries' },
   { key: 'special', label: 'Special Drinks' }
@@ -30,6 +30,7 @@ function MainPage() {
   const [detailIndex, setDetailIndex] = useState(0);
   const [language, setLanguage] = useState('EN');
   const [showClosedPopup, setShowClosedPopup] = useState(false);
+  const [selectedSizes, setSelectedSizes] = useState({});
   const [storeSettings, setStoreSettings] = useState(() => {
     const saved = localStorage.getItem('storeSettings');
     return saved ? JSON.parse(saved) : { openTime: '08:00', closeTime: '22:00', orderingEnabled: true };
@@ -76,19 +77,12 @@ function MainPage() {
     // Load settings from localStorage
     const loadSettings = () => {
       const saved = localStorage.getItem('storeSettings');
-      console.log('Loading settings:', saved);
       if (saved) {
         const parsed = JSON.parse(saved);
-        console.log('Parsed settings:', parsed);
         setStoreSettings(parsed);
       }
     };
     loadSettings();
-    
-    // Check for settings changes every 1 second
-    const interval = setInterval(loadSettings, 1000);
-    
-    return () => clearInterval(interval);
   }, []);
 
   // Listen for cart changes from localStorage (for cross-page sync)
@@ -129,7 +123,7 @@ function MainPage() {
       addItems: 'Add items from the menu',
       categories: [
         { key: 'all', label: 'All Items' },
-        { key: 'coffee', label: 'Coffee' },
+        { key: 'coffee', label: 'Coffee Beans' },
         { key: 'tea', label: 'Tea' },
         { key: 'pastries', label: 'Pastries' },
         { key: 'special', label: 'Special Drinks' }
@@ -160,7 +154,7 @@ function MainPage() {
       addItems: 'أضف عناصر من القائمة',
       categories: [
         { key: 'all', label: 'كل العناصر' },
-        { key: 'coffee', label: 'قهوة' },
+        { key: 'coffee', label: 'حبوب قهوة' },
         { key: 'tea', label: 'شاي' },
         { key: 'pastries', label: 'معجنات' },
         { key: 'special', label: 'مشروبات خاصة' }
@@ -186,46 +180,73 @@ function MainPage() {
   const t = translations[language];
 
   // Cart operations
-  const addToCart = (itemId) => {
+  const addToCart = (itemId, selectedSize = null) => {
     const item = menuItems.find(menuItem => menuItem._id === itemId);
+    if (!item) return;
+
+    // If no size selected and item has sizes, use default size
+    let sizeToUse = selectedSize;
+    if (!sizeToUse && item.sizes && item.sizes.length > 0) {
+      sizeToUse = item.sizes.find(size => size.isDefault) || item.sizes[0];
+    }
+
+    // Create cart item key that includes size for uniqueness
+    const cartItemKey = sizeToUse ? `${itemId}_${sizeToUse.name.EN}` : itemId;
+
     setCart(prev => {
-      const existing = prev.find(ci => ci._id === itemId);
+      const existing = prev.find(ci => ci.cartKey === cartItemKey);
       let newCart;
       if (existing) {
-        newCart = prev.map(ci => ci._id === itemId ? { ...ci, quantity: ci.quantity + 1 } : ci);
+        newCart = prev.map(ci => ci.cartKey === cartItemKey ? { ...ci, quantity: ci.quantity + 1 } : ci);
       } else {
-        newCart = [...prev, { ...item, quantity: 1 }];
+        const cartItem = {
+          ...item,
+          cartKey: cartItemKey,
+          selectedSize: sizeToUse,
+          quantity: 1
+        };
+        newCart = [...prev, cartItem];
       }
       localStorage.setItem('cart', JSON.stringify(newCart));
       return newCart;
     });
   };
 
-  const increaseQuantity = (itemId) => {
+  const increaseQuantity = (cartKey) => {
     setCart(prev => {
-      const newCart = prev.map(ci => ci._id === itemId ? { ...ci, quantity: ci.quantity + 1 } : ci);
+      const newCart = prev.map(ci => ci.cartKey === cartKey ? { ...ci, quantity: ci.quantity + 1 } : ci);
       localStorage.setItem('cart', JSON.stringify(newCart));
       return newCart;
     });
   };
 
-  const decreaseQuantity = (itemId) => {
+  const decreaseQuantity = (cartKey) => {
     setCart(prev => {
-      const newCart = prev.flatMap(ci => ci._id === itemId ? (ci.quantity > 1 ? [{ ...ci, quantity: ci.quantity - 1 }] : []) : [ci]);
+      const newCart = prev.flatMap(ci => ci.cartKey === cartKey ? (ci.quantity > 1 ? [{ ...ci, quantity: ci.quantity - 1 }] : []) : [ci]);
       localStorage.setItem('cart', JSON.stringify(newCart));
       return newCart;
     });
   };
 
-  const removeItem = (itemId) => {
+  const removeItem = (cartKey) => {
     setCart(prev => {
-      const newCart = prev.filter(ci => ci._id !== itemId);
+      const newCart = prev.filter(ci => ci.cartKey !== cartKey);
       localStorage.setItem('cart', JSON.stringify(newCart));
       return newCart;
     });
   };
 
-  const total = cart.reduce((sum, item) => sum + item.price.EN * item.quantity, 0);
+  const total = cart.reduce((sum, item) => {
+    let price = 0;
+    if (item.selectedSize && item.selectedSize.price) {
+      // Use selected size price
+      price = typeof item.selectedSize.price === 'object' ? item.selectedSize.price.EN || 0 : item.selectedSize.price || 0;
+    } else {
+      // Fallback to item price
+      price = typeof item.price === 'object' ? item.price.EN || 0 : item.price || 0;
+    }
+    return sum + (price * item.quantity);
+  }, 0);
 
   // Modal form
   const [form, setForm] = useState({
@@ -267,16 +288,39 @@ function MainPage() {
       customerName: form.customerName,
       customerPhone: form.customerPhone,
       orderType: form.orderType,
-      tableNumber: form.tableNumber,
-      deliveryAddress: form.deliveryAddress,
-      specialInstructions: form.specialInstructions,
       paymentMethod: 'cash', // Default payment method, can be extended later
       items: cart.map(item => ({
         menuItem: item._id, // Send ObjectId reference
-        quantity: item.quantity
+        selectedSize: item.selectedSize ? {
+          name: item.selectedSize.name,
+          price: item.selectedSize.price
+        } : null,
+        quantity: item.quantity,
+        priceAtOrder: item.selectedSize && item.selectedSize.price ?
+          (typeof item.selectedSize.price === 'object' ? item.selectedSize.price.EN || 0 : item.selectedSize.price || 0) :
+          (typeof item.price === 'object' ? item.price.EN || 0 : item.price || 0)
       })),
-      totalAmount: cart.reduce((sum, item) => sum + item.price.EN * item.quantity, 0)
+      totalAmount: cart.reduce((sum, item) => {
+        let price = 0;
+        if (item.selectedSize && item.selectedSize.price) {
+          price = typeof item.selectedSize.price === 'object' ? item.selectedSize.price.EN || 0 : item.selectedSize.price || 0;
+        } else {
+          price = typeof item.price === 'object' ? item.price.EN || 0 : item.price || 0;
+        }
+        return sum + (price * item.quantity);
+      }, 0)
     };
+
+    // Add optional fields only if they have values
+    if (form.tableNumber && form.tableNumber.trim()) {
+      orderData.tableNumber = form.tableNumber.trim();
+    }
+    if (form.deliveryAddress && form.deliveryAddress.trim()) {
+      orderData.deliveryAddress = form.deliveryAddress.trim();
+    }
+    if (form.specialInstructions && form.specialInstructions.trim()) {
+      orderData.specialInstructions = form.specialInstructions.trim();
+    }
     api.placeOrder(orderData).then(res => {
       setShowSuccess(true);
       setCart([]);
@@ -290,9 +334,25 @@ function MainPage() {
         deliveryAddress: '',
         specialInstructions: ''
       });
-      setTimeout(() => setShowSuccess(false), 2000);
-    }).catch(() => {
-      alert('Failed to place order. Please try again.');
+      // Show order number in success message
+      setTimeout(() => {
+        alert(`Order #${res.order.orderNumber} placed successfully!`);
+        setShowSuccess(false);
+      }, 2000);
+    }).catch((error) => {
+      console.error('Order placement error:', error);
+      let errorMessage = 'Failed to place order. Please try again.';
+      
+      if (error.message) {
+        // Try to extract more specific error from the response
+        if (error.message.includes('400')) {
+          errorMessage = 'Please check all required fields and try again.';
+        } else if (error.message.includes('500')) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+      }
+      
+      alert(errorMessage);
     });
   };
 
@@ -411,7 +471,7 @@ function MainPage() {
                   {item.image ? (
                     <img
                       src={getImageUrl(item.image)}
-                      alt={item.name[language]}
+                      alt={typeof item.name === 'object' ? item.name[language] || item.name.EN || 'Menu Item' : item.name}
                       style={{
                         width: '100%',
                         height: '200px',
@@ -426,7 +486,7 @@ function MainPage() {
                     <div style={{
                       width: '100%',
                       height: '200px',
-                      backgroundImage: `url('https://placehold.co/400x300/8B4513/FFFFFF?text=${encodeURIComponent(item.name[language])}')`,
+                      backgroundImage: `url('https://placehold.co/400x300/8B4513/FFFFFF?text=${encodeURIComponent(typeof item.name === 'object' ? item.name[language] || item.name.EN || 'Menu Item' : item.name)}')`,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
                       borderRadius: '8px 8px 0 0'
@@ -435,14 +495,43 @@ function MainPage() {
                 </div>
                 <div className="item-details">
                   <div className="item-title">
-                    <h3>{item.name[language]}</h3>
-                    <span className="price" style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
-                      <span className="dirham-symbol">&#xea;</span>
-                      <span>{item.price[language]}</span>
-                    </span>
+                    <h3>{typeof item.name === 'object' ? item.name[language] || item.name.EN || 'No Name' : item.name}</h3>
+                    {item.sizes && item.sizes.length > 0 ? (
+                      <div className="size-options">
+                        {item.sizes.map((size, sizeIdx) => (
+                          <button
+                            key={sizeIdx}
+                            className={`size-btn ${selectedSizes[item._id] === size ? 'selected' : ''}`}
+                            onClick={() => {
+                              setSelectedSizes(prev => ({
+                                ...prev,
+                                [item._id]: size
+                              }));
+                            }}
+                          >
+                            <span className="size-name">{size.name[language]}</span>
+                            <span className="size-price" style={{display: 'flex', alignItems: 'center', gap: '2px'}}>
+                              <span className="dirham-symbol" style={{fontSize: '0.8em'}}>&#xea;</span>
+                              <span>{typeof size.price === 'object' ? size.price[language] || size.price.EN || '0.00' : size.price}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="price" style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        <span className="dirham-symbol">&#xea;</span>
+                        <span>{typeof item.price === 'object' ? item.price[language] || item.price.EN || '0.00' : item.price}</span>
+                      </span>
+                    )}
                   </div>
-                  <p className="item-description">{item.description[language]}</p>
-                  <button className="add-to-cart" onClick={() => addToCart(item._id)}>{t.addToCart}</button>
+                  <p className="item-description">{typeof item.description === 'object' ? item.description[language] || item.description.EN || 'No description' : item.description}</p>
+                  <button 
+                    className="add-to-cart" 
+                    onClick={() => addToCart(item._id, selectedSizes[item._id] || (item.sizes && item.sizes.length > 0 ? item.sizes.find(s => s.isDefault) || item.sizes[0] : null))}
+                    disabled={item.sizes && item.sizes.length > 0 && !selectedSizes[item._id]}
+                  >
+                    {item.sizes && item.sizes.length > 0 && !selectedSizes[item._id] ? 'Select Size' : t.addToCart}
+                  </button>
                 </div>
               </div>
             ))}
@@ -459,19 +548,29 @@ function MainPage() {
               </div>
             ) : (
               cart.map((item, idx) => (
-                <div className="cart-item" key={item._id || item.id || `cart-${idx}`}>
+                <div className="cart-item" key={item.cartKey || item._id || item.id || `cart-${idx}`}>
                   <div className="cart-item-details">
-                    <h4>{item.name[language]}</h4>
+                    <h4>{typeof item.name === 'object' ? item.name[language] || item.name.EN || 'No Name' : item.name}</h4>
+                    {item.selectedSize && (
+                      <p className="cart-item-size">{item.selectedSize.name[language]}</p>
+                    )}
                     <p style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
                       <span className="dirham-symbol">&#xea;</span>
-                      <span>{language === 'EN' ? item.price.EN.toFixed(2) : item.price.AR}</span>
+                      <span>
+                        {item.selectedSize && item.selectedSize.price ?
+                          (language === 'EN' ? (typeof item.selectedSize.price === 'object' ? item.selectedSize.price.EN || 0 : item.selectedSize.price || 0).toFixed(2) :
+                           (typeof item.selectedSize.price === 'object' ? item.selectedSize.price.AR || '0' : item.selectedSize.price || '0')) :
+                          (language === 'EN' ? (typeof item.price === 'object' ? item.price.EN || 0 : item.price || 0).toFixed(2) :
+                           (typeof item.price === 'object' ? item.price.AR || '0' : item.price || '0'))
+                        }
+                      </span>
                     </p>
                   </div>
                   <div className="cart-item-controls">
-                    <button className="quantity-btn minus" onClick={() => decreaseQuantity(item._id)}>-</button>
+                    <button className="quantity-btn minus" onClick={() => decreaseQuantity(item.cartKey)}>-</button>
                     <span>{item.quantity}</span>
-                    <button className="quantity-btn plus" onClick={() => increaseQuantity(item._id)}>+</button>
-                    <span className="remove-btn" onClick={() => removeItem(item._id)}><i className="fas fa-trash"></i></span>
+                    <button className="quantity-btn plus" onClick={() => increaseQuantity(item.cartKey)}>+</button>
+                    <span className="remove-btn" onClick={() => removeItem(item.cartKey)}><i className="fas fa-trash"></i></span>
                   </div>
                 </div>
               ))

@@ -12,6 +12,7 @@ const ItemDetailPage = () => {
   const [isChangingLanguage, setIsChangingLanguage] = useState(false);
   const [cart, setCart] = useState([]);
   const [showPopup, setShowPopup] = useState(false);
+  const [selectedSize, setSelectedSize] = useState(null);
 
   useEffect(() => {
     // Load item details
@@ -21,6 +22,11 @@ const ItemDetailPage = () => {
         const foundItem = menuItems.find(menuItem => menuItem._id === id);
         if (foundItem) {
           setItem(foundItem);
+          // Set default size if item has sizes
+          if (foundItem.sizes && foundItem.sizes.length > 0) {
+            const defaultSize = foundItem.sizes.find(size => size.isDefault) || foundItem.sizes[0];
+            setSelectedSize(defaultSize);
+          }
         } else {
           navigate('/menu');
         }
@@ -54,15 +60,26 @@ const ItemDetailPage = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const addToCart = (itemId) => {
+  const addToCart = (itemId, selectedSizeParam = null) => {
     const itemToAdd = item;
+    const sizeToUse = selectedSizeParam || selectedSize;
+    
+    // Create cart item key that includes size for uniqueness
+    const cartItemKey = sizeToUse ? `${itemId}_${sizeToUse.name.EN}` : itemId;
+
     setCart(prev => {
-      const existing = prev.find(ci => ci._id === itemId);
+      const existing = prev.find(ci => ci.cartKey === cartItemKey);
       let newCart;
       if (existing) {
-        newCart = prev.map(ci => ci._id === itemId ? { ...ci, quantity: ci.quantity + 1 } : ci);
+        newCart = prev.map(ci => ci.cartKey === cartItemKey ? { ...ci, quantity: ci.quantity + 1 } : ci);
       } else {
-        newCart = [...prev, { ...itemToAdd, quantity: 1 }];
+        const cartItem = {
+          ...itemToAdd,
+          cartKey: cartItemKey,
+          selectedSize: sizeToUse,
+          quantity: 1
+        };
+        newCart = [...prev, cartItem];
       }
       localStorage.setItem('cart', JSON.stringify(newCart));
       return newCart;
@@ -390,8 +407,69 @@ const ItemDetailPage = () => {
                 gap: '8px'
               }}>
                 <span className="dirham-symbol">&#xea;</span>
-                <span>{item.price[language]}</span>
+                <span>
+                  {selectedSize && selectedSize.price ?
+                    (typeof selectedSize.price === 'object' ? selectedSize.price[language] || selectedSize.price.EN || '0.00' : selectedSize.price) :
+                    (typeof item.price === 'object' ? item.price[language] || item.price.EN || '0.00' : item.price)
+                  }
+                </span>
               </div>
+
+              {/* Size Selection */}
+              {item.sizes && item.sizes.length > 0 && (
+                <div style={{ marginBottom: '2rem' }}>
+                  <h3 style={{
+                    fontSize: '1.2rem',
+                    fontWeight: '500',
+                    color: 'var(--dark)',
+                    marginBottom: '1rem'
+                  }}>
+                    {language === 'EN' ? 'Select Size:' : 'اختر الحجم:'}
+                  </h3>
+                  <div className="size-options" style={{
+                    display: 'flex',
+                    gap: '10px',
+                    flexWrap: 'wrap'
+                  }}>
+                    {item.sizes.map((size, sizeIdx) => (
+                      <button
+                        key={sizeIdx}
+                        className={`size-btn ${selectedSize === size ? 'selected' : ''}`}
+                        onClick={() => setSelectedSize(size)}
+                        style={{
+                          padding: '12px 16px',
+                          border: selectedSize === size ? '2px solid var(--primary)' : '2px solid #ddd',
+                          borderRadius: '8px',
+                          backgroundColor: selectedSize === size ? 'var(--primary)' : 'white',
+                          color: selectedSize === size ? 'white' : 'var(--dark)',
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          fontWeight: '500',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '4px',
+                          minWidth: '80px'
+                        }}
+                      >
+                        <span className="size-name" style={{ fontWeight: 'bold' }}>
+                          {size.name[language]}
+                        </span>
+                        <span className="size-price" style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px',
+                          fontSize: '0.8rem'
+                        }}>
+                          <span className="dirham-symbol" style={{fontSize: '0.7em'}}>&#xea;</span>
+                          <span>{typeof size.price === 'object' ? size.price[language] || size.price.EN || '0.00' : size.price}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -424,7 +502,7 @@ const ItemDetailPage = () => {
               marginTop: '2rem'
             }}>
               <button
-                onClick={() => addToCart(item._id)}
+                onClick={() => addToCart(item._id, selectedSize)}
                 style={{
                   width: '100%',
                   padding: '16px 24px',

@@ -9,6 +9,7 @@ router.get('/stats', async (req, res) => {
   try {
     const Order = require('../models/Order');
     const MenuItem = require('../models/MenuItem');
+    const Inventory = require('../models/Inventory');
 
     const totalOrders = await Order.countDocuments();
     const pendingOrders = await Order.countDocuments({ status: { $ne: 'completed' } });
@@ -22,12 +23,41 @@ router.get('/stats', async (req, res) => {
       createdAt: { $gte: today }
     });
 
+    // Get inventory stats
+    const inventoryStats = await Inventory.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalInventoryItems: { $sum: 1 },
+          totalInventoryValue: { $sum: { $multiply: ['$currentStock', { $ifNull: ['$costPerUnit', 0] }] } },
+          lowStockCount: {
+            $sum: {
+              $cond: [{ $lte: ['$currentStock', '$minStock'] }, 1, 0]
+            }
+          },
+          outOfStockCount: {
+            $sum: {
+              $cond: [{ $eq: ['$currentStock', 0] }, 1, 0]
+            }
+          }
+        }
+      }
+    ]);
+
+    const inventoryData = inventoryStats[0] || {
+      totalInventoryItems: 0,
+      totalInventoryValue: 0,
+      lowStockCount: 0,
+      outOfStockCount: 0
+    };
+
     res.json({
       totalOrders,
       pendingOrders,
       completedOrders,
       totalMenuItems,
-      todaysOrders
+      todaysOrders,
+      inventory: inventoryData
     });
   } catch (error) {
     console.error('Stats error:', error);

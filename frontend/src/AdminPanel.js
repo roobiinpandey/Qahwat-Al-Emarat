@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from './api';
+import InventoryPanel from './InventoryPanel';
 
 const AdminPanel = () => {
   const [menuItems, setMenuItems] = useState([]);
@@ -19,7 +20,12 @@ const AdminPanel = () => {
     priceEN: '',
     priceAR: '',
     category: 'coffee',
-    image: ''
+    image: '',
+    sizes: [
+      { name: { EN: '250g', AR: '250 جرام' }, price: { EN: '', AR: '' }, isDefault: false },
+      { name: { EN: '500g', AR: '500 جرام' }, price: { EN: '', AR: '' }, isDefault: true },
+      { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: '', AR: '' }, isDefault: false }
+    ]
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -112,18 +118,14 @@ const AdminPanel = () => {
         order.items.forEach(orderItem => {
           const itemId = orderItem.menuItem;
           const quantity = orderItem.quantity || 0;
+          const priceAtOrder = orderItem.priceAtOrder || 0;
 
           if (itemId) {
             if (!itemSales[itemId]) {
               itemSales[itemId] = { quantity: 0, revenue: 0 };
             }
             itemSales[itemId].quantity += quantity;
-
-            // Find the item to get price
-            const menuItem = items.find(item => item._id === itemId);
-            if (menuItem && menuItem.price && menuItem.price.EN) {
-              itemSales[itemId].revenue += quantity * menuItem.price.EN;
-            }
+            itemSales[itemId].revenue += priceAtOrder * quantity;
           }
         });
       }
@@ -240,7 +242,15 @@ const AdminPanel = () => {
         description: { EN: form.descriptionEN, AR: form.descriptionAR },
         price: { EN: parseFloat(form.priceEN), AR: form.priceAR },
         category: form.category,
-        image: imageUrl
+        image: imageUrl,
+        sizes: form.sizes.map(size => ({
+          name: size.name,
+          price: {
+            EN: parseFloat(size.price.EN),
+            AR: size.price.AR
+          },
+          isDefault: size.isDefault
+        }))
       };
 
       if (editingId) {
@@ -268,7 +278,19 @@ const AdminPanel = () => {
       priceEN: item.price.EN.toString(),
       priceAR: item.price.AR,
       category: item.category,
-      image: item.image
+      image: item.image,
+      sizes: item.sizes && item.sizes.length > 0 ? item.sizes.map(size => ({
+        name: size.name,
+        price: {
+          EN: size.price.EN.toString(),
+          AR: size.price.AR
+        },
+        isDefault: size.isDefault || false
+      })) : [
+        { name: { EN: '250g', AR: '250 جرام' }, price: { EN: (item.price.EN * 0.8).toString(), AR: item.price.AR }, isDefault: false },
+        { name: { EN: '500g', AR: '500 جرام' }, price: { EN: item.price.EN.toString(), AR: item.price.AR }, isDefault: true },
+        { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: (item.price.EN * 1.8).toString(), AR: item.price.AR }, isDefault: false }
+      ]
     });
     setEditingId(item._id);
   };
@@ -338,7 +360,12 @@ const AdminPanel = () => {
       priceEN: '',
       priceAR: '',
       category: 'coffee',
-      image: ''
+      image: '',
+      sizes: [
+        { name: { EN: '250g', AR: '250 جرام' }, price: { EN: '', AR: '' }, isDefault: false },
+        { name: { EN: '500g', AR: '500 جرام' }, price: { EN: '', AR: '' }, isDefault: true },
+        { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: '', AR: '' }, isDefault: false }
+      ]
     });
     setSelectedFile(null);
     setEditingId(null);
@@ -350,7 +377,7 @@ const AdminPanel = () => {
   };
 
   const categories = [
-    { value: 'coffee', label: 'Coffee' },
+    { value: 'coffee', label: 'Coffee Beans' },
     { value: 'tea', label: 'Tea' },
     { value: 'pastries', label: 'Pastries' },
     { value: 'special', label: 'Special Drinks' }
@@ -365,7 +392,7 @@ const AdminPanel = () => {
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1>Admin Panel - Qahwatal Emarat</h1>
+        <h1>Admin Panel - QAHWAT AL EMARAT</h1>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {!isLoggedIn ? (
             <button
@@ -431,6 +458,20 @@ const AdminPanel = () => {
         >
           Order Management
         </button>
+        <button
+          onClick={() => setActiveTab('inventory')}
+          style={{
+            padding: '12px 24px',
+            background: activeTab === 'inventory' ? '#007bff' : 'transparent',
+            color: activeTab === 'inventory' ? 'white' : '#007bff',
+            border: 'none',
+            borderRadius: '5px 5px 0 0',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          Inventory
+        </button>
       </div>
 
       {/* Dashboard Tab */}
@@ -481,7 +522,10 @@ const AdminPanel = () => {
                   <strong>Revenue:</strong> {salesAnalytics.bestSellingItem.totalRevenue.toFixed(2)} AED
                 </p>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
-                  <strong>Price:</strong> {salesAnalytics.bestSellingItem.price.EN} AED
+                  <strong>Price:</strong> {(() => {
+                    const defaultSize = salesAnalytics.bestSellingItem.sizes?.find(size => size.isDefault);
+                    return defaultSize ? defaultSize.price.EN : salesAnalytics.bestSellingItem.price?.EN || 'N/A';
+                  })()} AED
                 </p>
               </div>
             )}
@@ -497,7 +541,10 @@ const AdminPanel = () => {
                   <strong>Revenue:</strong> {salesAnalytics.worstSellingItem.totalRevenue.toFixed(2)} AED
                 </p>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
-                  <strong>Price:</strong> {salesAnalytics.worstSellingItem.price.EN} AED
+                  <strong>Price:</strong> {(() => {
+                    const defaultSize = salesAnalytics.worstSellingItem.sizes?.find(size => size.isDefault);
+                    return defaultSize ? defaultSize.price.EN : salesAnalytics.worstSellingItem.price?.EN || 'N/A';
+                  })()} AED
                 </p>
               </div>
             )}
@@ -653,6 +700,78 @@ const AdminPanel = () => {
                 </select>
               </div>
 
+              {/* Size Management */}
+              <div style={{ marginBottom: '20px' }}>
+                <h3 style={{ marginBottom: '15px' }}>Size Options & Pricing</h3>
+                <div style={{ display: 'grid', gap: '15px' }}>
+                  {form.sizes.map((size, index) => (
+                    <div key={index} style={{ 
+                      border: '1px solid #ddd', 
+                      borderRadius: '8px', 
+                      padding: '15px',
+                      backgroundColor: size.isDefault ? '#f8f9fa' : 'white'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                        <h4 style={{ margin: '0', flex: 1 }}>{size.name.EN} / {size.name.AR}</h4>
+                        <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+                          <input
+                            type="radio"
+                            name="defaultSize"
+                            checked={size.isDefault}
+                            onChange={() => {
+                              setForm(prev => ({
+                                ...prev,
+                                sizes: prev.sizes.map((s, i) => ({
+                                  ...s,
+                                  isDefault: i === index
+                                }))
+                              }));
+                            }}
+                            style={{ marginRight: '5px' }}
+                          />
+                          Default Size
+                        </label>
+                      </div>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ fontSize: '14px' }}>Price (EN) - AED:</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={size.price.EN}
+                            onChange={(e) => {
+                              const newSizes = [...form.sizes];
+                              newSizes[index].price.EN = e.target.value;
+                              setForm(prev => ({ ...prev, sizes: newSizes }));
+                            }}
+                            style={{ width: '100%', padding: '6px', marginTop: '3px' }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '14px' }}>Price (AR):</label>
+                          <input
+                            type="text"
+                            value={size.price.AR}
+                            onChange={(e) => {
+                              const newSizes = [...form.sizes];
+                              newSizes[index].price.AR = e.target.value;
+                              setForm(prev => ({ ...prev, sizes: newSizes }));
+                            }}
+                            style={{ width: '100%', padding: '6px', marginTop: '3px' }}
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                  <strong>Note:</strong> The default size will be used as the base price for backward compatibility and inventory calculations.
+                </p>
+              </div>
+
               <div style={{ marginBottom: '10px' }}>
                 <label>Image: </label>
                 <input
@@ -687,21 +806,46 @@ const AdminPanel = () => {
           )}
 
           <h2>Menu Items</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
             {menuItems.map(item => (
               <div key={item._id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px' }}>
                 <h3>{item.name.EN}</h3>
                 <p><strong>AR:</strong> {item.name.AR}</p>
                 <p><strong>Description EN:</strong> {item.description.EN}</p>
                 <p><strong>Description AR:</strong> {item.description.AR}</p>
-                <p><strong>Price:</strong> AED {item.price.EN} / {item.price.AR}</p>
+                <p><strong>Base Price:</strong> AED {item.price.EN} / {item.price.AR}</p>
                 <p><strong>Category:</strong> {item.category}</p>
+                
+                {/* Size Information */}
+                {item.sizes && item.sizes.length > 0 && (
+                  <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                    <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>Available Sizes:</p>
+                    {item.sizes.map((size, index) => (
+                      <div key={index} style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        padding: '4px 0',
+                        fontSize: '14px'
+                      }}>
+                        <span>
+                          {size.name.EN} / {size.name.AR}
+                          {size.isDefault && <span style={{ color: '#007bff', marginLeft: '5px' }}>(Default)</span>}
+                        </span>
+                        <span style={{ fontWeight: 'bold' }}>
+                          AED {size.price.EN} / {size.price.AR}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
                 {isLoggedIn && (
-                  <div style={{ marginTop: '10px' }}>
-                    <button onClick={() => handleEdit(item)} style={{ padding: '5px 10px', marginRight: '5px' }}>
+                  <div style={{ marginTop: '15px', display: 'flex', gap: '5px' }}>
+                    <button onClick={() => handleEdit(item)} style={{ padding: '6px 12px', fontSize: '14px' }}>
                       Edit
                     </button>
-                    <button onClick={() => handleDelete(item._id)} style={{ padding: '5px 10px', backgroundColor: '#dc3545', color: 'white' }}>
+                    <button onClick={() => handleDelete(item._id)} style={{ padding: '6px 12px', backgroundColor: '#dc3545', color: 'white', fontSize: '14px' }}>
                       Delete
                     </button>
                   </div>
@@ -739,8 +883,18 @@ const AdminPanel = () => {
                 <p><strong>Items:</strong></p>
                 <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
                   {order.items.map((item, index) => (
-                    <li key={index}>
-                      {item.menuItem?.name?.EN || 'Unknown Item'} x{item.quantity}
+                    <li key={index} style={{ marginBottom: '5px' }}>
+                      <div>
+                        <strong>{item.menuItem?.name?.EN || 'Unknown Item'}</strong>
+                        {item.selectedSize && (
+                          <span style={{ color: '#666', marginLeft: '5px' }}>
+                            ({item.selectedSize.name.EN})
+                          </span>
+                        )}
+                        <span style={{ marginLeft: '10px' }}>
+                          x{item.quantity} = AED {item.priceAtOrder?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -759,6 +913,11 @@ const AdminPanel = () => {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Inventory Management Tab */}
+      {activeTab === 'inventory' && (
+        <InventoryPanel />
       )}
     </div>
   );

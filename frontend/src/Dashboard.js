@@ -120,7 +120,7 @@ function Dashboard() {
     <div className="dashboard-container">
       <div className="dashboard-header">
         <div className="dashboard-header-content">
-          Qahwatal Emarat Dashboard
+          QAHWAT AL EMARAT Dashboard
         </div>
       </div>
       
@@ -237,6 +237,7 @@ function Dashboard() {
             <div className="order-header">
               <div className="customer-info">
                 <span className="customer-name">{order.customerName}</span>
+                <span className="order-number">Order #{order.orderNumber || order._id?.slice(-6)}</span>
                 <span className={`status-badge ${order.status || 'pending'}`}>
                   {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'New'}
                 </span>
@@ -250,15 +251,15 @@ function Dashboard() {
               <div className="order-items-title">Items:</div>
               <ul className="items-list">
                 {order.items.map(item => (
-                  <li key={item.id}>
-                    <span className="item-name">{item.name}</span>
+                  <li key={item._id || item.id}>
+                    <span className="item-name">{typeof item.menuItem?.name === 'object' ? item.menuItem.name.EN || item.menuItem.name.AR || 'Unknown Item' : item.menuItem?.name || 'Unknown Item'}</span>
                     <span className="item-quantity">x{item.quantity}</span>
                   </li>
                 ))}
               </ul>
             </div>
             
-            <div className="order-total">Total: {order.total.toFixed(2)} AED</div>
+            <div className="order-total">Total: {(order.total || 0).toFixed(2)} AED</div>
             <div className="order-timestamp">{new Date(order.createdAt).toLocaleString()}</div>
             
             <div className="order-actions">
@@ -355,6 +356,10 @@ function Dashboard() {
             <h2 className="modal-title">Order Details</h2>
             <div className="order-details">
               <div className="detail-row">
+                <span className="detail-label">Order Number:</span>
+                <span className="detail-value">#{selectedOrder.orderNumber || selectedOrder._id?.slice(-6)}</span>
+              </div>
+              <div className="detail-row">
                 <span className="detail-label">Customer:</span>
                 <span className="detail-value">{selectedOrder.customerName}</span>
               </div>
@@ -396,14 +401,14 @@ function Dashboard() {
               <div className="order-items-title">Items:</div>
               <ul className="items-list">
                 {selectedOrder.items.map(item => (
-                  <li key={item.id}>
-                    <span className="item-name">{item.name}</span>
-                    <span className="item-quantity">x{item.quantity} - {item.price.toFixed(2)} AED</span>
+                  <li key={item._id || item.id}>
+                    <span className="item-name">{typeof item.menuItem?.name === 'object' ? item.menuItem.name.EN || item.menuItem.name.AR || 'Unknown Item' : item.menuItem?.name || 'Unknown Item'}</span>
+                    <span className="item-quantity">x{item.quantity} - {(item.priceAtOrder || (typeof item.menuItem?.price === 'object' ? item.menuItem.price.EN || 0 : item.menuItem?.price || 0)).toFixed(2)} AED</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="order-total">Total: {selectedOrder.total.toFixed(2)} AED</div>
+            <div className="order-total">Total: {(selectedOrder.total || 0).toFixed(2)} AED</div>
           </div>
         </div>
       )}

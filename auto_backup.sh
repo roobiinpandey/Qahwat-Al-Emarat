@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Qahwatal Emarat Project Auto Backup Script
-# Updated on: September 26, 2025
-# Version: 2.0
+# QAHWAT AL EMARAT Project Auto Backup Script
+# Updated on: September 27, 2025
+# Version: 2.1
 
 set -e  # Exit on any error
 
@@ -105,7 +105,7 @@ ask_permission() {
 
     echo
     echo -e "${YELLOW}========================================${NC}"
-    echo -e "${YELLOW}    QAHWATAL EMARAT PROJECT BACKUP${NC}"
+    echo -e "${YELLOW}    QAHWAT AL EMARAT PROJECT BACKUP${NC}"
     echo -e "${YELLOW}========================================${NC}"
     echo
     echo -e "${BLUE}$message${NC}"
@@ -127,7 +127,7 @@ ask_permission() {
 # Function to check if we're in the right directory
 check_project_directory() {
     if [[ ! -f "package.json" ]] || [[ ! -d "frontend" ]] || [[ ! -d "server" ]]; then
-        print_error "This doesn't appear to be the Qahwatal Emarat project directory."
+        print_error "This doesn't appear to be the QAHWAT AL EMARAT project directory."
         print_error "Please run this script from the project root directory."
         exit 1
     fi
@@ -135,7 +135,7 @@ check_project_directory() {
 
 # Function to get project information
 get_project_info() {
-    local project_name="Qahwatal Emarat"
+    local project_name="QAHWAT AL EMARAT"
     local total_files=$(find . -type f -not -path "./.git/*" 2>/dev/null | wc -l)
     local total_size=$(du -sh . --exclude=.git 2>/dev/null | cut -f1)
 
@@ -292,7 +292,7 @@ create_backup_info() {
     local info_file="$BACKUP_DIR/backup_info_${TIMESTAMP}.txt"
 
     {
-        echo "Qahwatal Emarat Project Backup Information"
+        echo "QAHWAT AL EMARAT Project Backup Information"
         echo "=========================================="
         echo
         echo "Backup created on: $(date)"
@@ -328,7 +328,7 @@ create_backup_info() {
 
 # Main function
 main() {
-    print_info "Qahwatal Emarat Auto Backup Script v2.0"
+    print_info "QAHWAT AL EMARAT Auto Backup Script v2.1"
     print_info "======================================"
 
     # Check if we're in the right directory

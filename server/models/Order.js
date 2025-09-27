@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema({
+  orderNumber: {
+    type: Number,
+    unique: true,
+    index: true
+  },
   customerName: {
     type: String,
     required: [true, 'Customer name is required'],
@@ -42,6 +47,16 @@ const OrderSchema = new mongoose.Schema({
       ref: 'MenuItem',
       required: [true, 'Menu item reference is required']
     },
+    selectedSize: {
+      name: {
+        EN: String,
+        AR: String
+      },
+      price: {
+        EN: Number,
+        AR: String
+      }
+    },
     quantity: {
       type: Number,
       required: [true, 'Quantity is required'],
@@ -72,6 +87,20 @@ const OrderSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+// Pre-save middleware to generate sequential order numbers
+OrderSchema.pre('save', async function(next) {
+  if (this.isNew && !this.orderNumber) {
+    try {
+      // Find the highest order number and increment it
+      const lastOrder = await this.constructor.findOne({}, {}, { sort: { 'orderNumber': -1 } });
+      this.orderNumber = lastOrder && lastOrder.orderNumber ? lastOrder.orderNumber + 1 : 1001; // Start from 1001
+    } catch (error) {
+      return next(error);
+    }
+  }
+  next();
 });
 
 // Indexes for performance
