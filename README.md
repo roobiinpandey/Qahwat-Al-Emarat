@@ -191,24 +191,121 @@ If you prefer automated deployment, you can use the `render.yaml` file in your r
 
 ---
 
-## 🛠 Local Development
+## � Docker Deployment
+
+The application now includes Docker support for easy deployment and development.
+
+### Quick Start with Docker
 
 ```bash
-# Install dependencies
-npm install
+# Clone the repository
+git clone https://github.com/roobiinpandey/Qahwat-Al-Emarat.git
+cd Qahwat-Al-Emarat
 
-# Start backend
-cd server && npm start
+# Create environment file
+cp .env.example .env
+# Edit .env with your configuration
 
-# Start frontend (in new terminal)
-cd frontend && npm start
+# Start with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
 ```
 
-## 📱 Features
+### Docker Commands
 
-- Menu management with image uploads
-- Real-time order processing
-- Admin dashboard with analytics
-- Responsive design
-- Secure authentication
-- Rate limiting and security features
+```bash
+# Build the image
+docker build -t qahwat-al-emarat .
+
+# Run the container
+docker run -p 3000:3000 --env-file .env qahwat-al-emarat
+
+# Run with MongoDB
+docker-compose up -d
+
+# View running containers
+docker ps
+
+# Stop all services
+docker-compose down
+```
+
+## 🔄 CI/CD Pipeline
+
+The project includes GitHub Actions for automated testing and deployment.
+
+### CI/CD Features
+
+- **Automated Testing**: Runs tests on every push and PR
+- **Docker Build**: Creates optimized Docker images
+- **Security Scanning**: Checks for vulnerabilities
+- **Deployment Ready**: Prepares artifacts for deployment
+
+### Pipeline Stages
+
+1. **Test**: Runs unit tests and integration tests
+2. **Build**: Creates production build and Docker image
+3. **Deploy**: Deploys to production (when configured)
+
+## 📊 Monitoring & Health Checks
+
+### Health Check Endpoints
+
+- `GET /api/v1/health` - Basic health check
+- `GET /api/v1/metrics` - System metrics and cache status
+
+### Monitoring Features
+
+- Memory usage tracking
+- Cache performance metrics
+- Database connection status
+- Application uptime
+- Request/response monitoring
+
+## 💾 Database Backup
+
+### Automated Backups
+
+The project includes automated database backup scripts.
+
+```bash
+# Run manual backup
+./backup.sh
+
+# Schedule automated backups (add to crontab)
+# 0 2 * * * /path/to/backup.sh
+```
+
+### Backup Features
+
+- Compressed backups with timestamp
+- Automatic cleanup (keeps last 7 backups)
+- Configurable retention policies
+- Cloud storage ready (AWS S3, Azure Blob)
+
+## 🚀 Performance Optimizations
+
+### Frontend Optimizations
+
+- **Code Splitting**: Route-based lazy loading with React.lazy()
+- **Bundle Optimization**: Reduced initial bundle size
+- **Image Optimization**: Automatic compression and WebP conversion
+
+### Backend Optimizations
+
+- **Database Queries**: Optimized with aggregation pipelines
+- **Caching**: In-memory cache with TTL for frequently accessed data
+- **Image Processing**: Sharp library for efficient image handling
+- **Rate Limiting**: Configurable rate limits for API endpoints
+
+### Caching Strategy
+
+- Menu items cached for 5 minutes
+- Automatic cache cleanup
+- Cache hit/miss monitoring
+- Memory-efficient implementation

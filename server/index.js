@@ -9,6 +9,48 @@ const { body, validationResult } = require('express-validator');
 const { apiLimiter, authLimiter, orderLimiter } = require('./middleware/rateLimiter');
 const multer = require('multer');
 const path = require('path');
+const sharp = require('sharp');
+
+// Simple in-memory cache
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Cache middleware
+const cacheMiddleware = (key, ttl = CACHE_TTL) => {
+  return (req, res, next) => {
+    const cacheKey = `${key}_${JSON.stringify(req.query)}`;
+    const cached = cache.get(cacheKey);
+
+    if (cached && (Date.now() - cached.timestamp) < ttl) {
+      return res.json(cached.data);
+    }
+
+    // Store original json method
+    const originalJson = res.json;
+    res.json = function(data) {
+      // Cache the response
+      cache.set(cacheKey, {
+        data: data,
+        timestamp: Date.now()
+      });
+
+      // Call original json method
+      originalJson.call(this, data);
+    };
+
+    next();
+  };
+};
+
+// Cache cleanup interval
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of cache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      cache.delete(key);
+    }
+  }
+}, CACHE_TTL);
 
 const app = express();
 
@@ -57,22 +99,13 @@ app.use('/images', express.static('images'));
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename with timestamp
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configure multer for file uploads with image processing
+const storage = multer.memoryStorage(); // Store in memory for processing
 
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
     // Check if file is an image
@@ -83,6 +116,48 @@ const upload = multer({
     }
   }
 });
+
+// Image processing middleware
+const processImage = async (req, res, next) => {
+  if (!req.file) return next();
+
+  try {
+    const filename = Date.now() + '-' + Math.round(Math.random() * 1E9) + '.webp';
+    const filepath = path.join('uploads', filename);
+
+    // Process image with sharp
+    await sharp(req.file.buffer)
+      .resize(800, 600, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .webp({ quality: 80 })
+      .toFile(filepath);
+
+    // Also create a thumbnail
+    const thumbnailFilename = 'thumb_' + filename;
+    const thumbnailPath = path.join('uploads', thumbnailFilename);
+
+    await sharp(req.file.buffer)
+      .resize(300, 300, {
+        fit: 'cover',
+        position: 'center'
+      })
+      .webp({ quality: 70 })
+      .toFile(thumbnailPath);
+
+    // Replace the file object with processed file info
+    req.file.filename = filename;
+    req.file.thumbnailFilename = thumbnailFilename;
+    req.file.path = filepath;
+    req.file.thumbnailPath = thumbnailPath;
+
+    next();
+  } catch (error) {
+    console.error('Image processing error:', error);
+    next(error);
+  }
+};
 
 // MongoDB connection with error handling
 const connectDB = async () => {
@@ -174,6 +249,18 @@ app.post('/api/admin/login', authLimiter, [
   }
 });
 
+// Add global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -183,8 +270,40 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Health check endpoint (v1)
+app.get('/api/v1/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
+  });
+});
+
+// Metrics endpoint for monitoring
+app.get('/api/v1/metrics', (req, res) => {
+  const memUsage = process.memoryUsage();
+  const uptime = process.uptime();
+
+  res.json({
+    timestamp: new Date().toISOString(),
+    uptime: uptime,
+    memory: {
+      rss: Math.round(memUsage.rss / 1024 / 1024) + ' MB',
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
+      external: Math.round(memUsage.external / 1024 / 1024) + ' MB'
+    },
+    cache: {
+      size: cache.size,
+      keys: Array.from(cache.keys())
+    },
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
 // File upload endpoint
-app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) => {
+app.post('/api/upload', authenticateToken, upload.single('image'), processImage, (req, res) => {
   console.log('Upload endpoint called');
   console.log('File:', req.file);
   console.log('Body:', req.body);
@@ -196,11 +315,14 @@ app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) =>
 
     // Return the file path that can be used in the frontend
     const fileUrl = `/uploads/${req.file.filename}`;
+    const thumbnailUrl = `/uploads/${req.file.thumbnailFilename}`;
     console.log('File uploaded successfully:', fileUrl);
     res.json({
-      message: 'File uploaded successfully',
+      message: 'File uploaded and optimized successfully',
       fileUrl: fileUrl,
-      filename: req.file.filename
+      thumbnailUrl: thumbnailUrl,
+      filename: req.file.filename,
+      thumbnailFilename: req.file.thumbnailFilename
     });
   } catch (error) {
     console.error('Upload error:', error);
@@ -218,13 +340,13 @@ app.get('/', (req, res) => {
 });
 
 // API routes (v1)
-app.use('/api/v1/menu', require('./routes/menu'));
+app.use('/api/v1/menu', cacheMiddleware('menu'), require('./routes/menu'));
 app.use('/api/v1/order', require('./routes/order'));
 app.use('/api/v1/admin', authenticateToken, require('./routes/admin'));
 app.use('/api/v1/inventory', authenticateToken, require('./routes/inventory'));
 
 // Legacy API routes (for backward compatibility)
-app.use('/api/menu', require('./routes/menu'));
+app.use('/api/menu', cacheMiddleware('menu'), require('./routes/menu'));
 app.use('/api/order', require('./routes/order'));
 app.use('/api/admin', authenticateToken, require('./routes/admin'));
 app.use('/api/inventory', authenticateToken, require('./routes/inventory'));

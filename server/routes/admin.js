@@ -7,21 +7,28 @@ const { body, validationResult } = require('express-validator');
 // Get admin dashboard stats
 router.get('/stats', async (req, res) => {
   try {
+    const { date } = req.query;
     const Order = require('../models/Order');
     const MenuItem = require('../models/MenuItem');
     const Inventory = require('../models/Inventory');
 
-    const totalOrders = await Order.countDocuments();
-    const pendingOrders = await Order.countDocuments({ status: { $ne: 'completed' } });
-    const completedOrders = await Order.countDocuments({ status: 'completed' });
+    // Set up date filter
+    let dateFilter = {};
+    if (date) {
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(date);
+      endDate.setHours(23, 59, 59, 999);
+      dateFilter = { createdAt: { $gte: startDate, $lte: endDate } };
+    }
+
+    const totalOrders = await Order.countDocuments(dateFilter);
+    const pendingOrders = await Order.countDocuments({ ...dateFilter, status: { $ne: 'completed' } });
+    const completedOrders = await Order.countDocuments({ ...dateFilter, status: 'completed' });
     const totalMenuItems = await MenuItem.countDocuments();
 
-    // Get today's orders
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todaysOrders = await Order.countDocuments({
-      createdAt: { $gte: today }
-    });
+    // Get today's orders (or selected date's orders)
+    const todaysOrders = await Order.countDocuments(dateFilter);
 
     // Get inventory stats
     const inventoryStats = await Inventory.aggregate([
@@ -57,7 +64,8 @@ router.get('/stats', async (req, res) => {
       completedOrders,
       totalMenuItems,
       todaysOrders,
-      inventory: inventoryData
+      inventory: inventoryData,
+      selectedDate: date || new Date().toISOString().split('T')[0]
     });
   } catch (error) {
     console.error('Stats error:', error);

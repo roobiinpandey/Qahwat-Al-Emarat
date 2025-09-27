@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/qahwat_al_emarat
+      - JWT_SECRET=your_jwt_secret_here
+      - PORT=3000
+    depends_on:
+      - mongodb
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - qahwat-network
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=qahwat_al_emarat
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+    networks:
+      - qahwat-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  uploads:
+
+networks:
+  qahwat-network:
+    driver: bridge

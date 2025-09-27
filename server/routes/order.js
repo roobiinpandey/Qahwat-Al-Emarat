@@ -129,13 +129,108 @@ router.post('/', orderLimiter, [
   }
 });
 
-// Get all orders (for admin)
+// Get all orders (for admin) with pagination and filtering
 router.get('/', async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate('items.menuItem', 'name price')
-      .sort({ createdAt: -1 });
-    res.json(orders);
+    const { page = 1, limit = 20, status, startDate, endDate, date } = req.query;
+    const skip = (page - 1) * limit;
+
+    // Build query object
+    let query = {};
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    // Handle date filtering
+    if (date) {
+      // Filter for specific date (whole day)
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(date);
+      endDate.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: startDate, $lte: endDate };
+    } else if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    // Use aggregation pipeline for better performance
+    const pipeline = [
+      { $match: query },
+      {
+        $lookup: {
+          from: 'menuitems',
+          localField: 'items.menuItem',
+          foreignField: '_id',
+          as: 'menuItemDetails'
+        }
+      },
+      {
+        $addFields: {
+          items: {
+            $map: {
+              input: '$items',
+              as: 'item',
+              in: {
+                $mergeObjects: [
+                  '$$item',
+                  {
+                    menuItem: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: '$menuItemDetails',
+                            cond: { $eq: ['$$this._id', '$$item.menuItem'] }
+                          }
+                        },
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          orderNumber: 1,
+          customerName: 1,
+          customerPhone: 1,
+          orderType: 1,
+          tableNumber: 1,
+          deliveryAddress: 1,
+          specialInstructions: 1,
+          items: 1,
+          total: 1,
+          status: 1,
+          paymentMethod: 1,
+          createdAt: 1,
+          updatedAt: 1
+          // menuItemDetails is automatically excluded since it's not listed
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: parseInt(limit) }
+    ];
+
+    const orders = await Order.aggregate(pipeline);
+
+    // Get total count for pagination
+    const total = await Order.countDocuments(query);
+
+    res.json({
+      orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      }
+    });
   } catch (error) {
     console.error('Orders fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch orders' });

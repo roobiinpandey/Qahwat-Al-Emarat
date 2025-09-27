@@ -1,114 +1,172 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from './api';
 import InventoryPanel from './InventoryPanel';
 
+// Static data definitions
+const categories = [
+  { value: 'coffee', label: 'Coffee Beans' },
+  { value: 'tea', label: 'Tea' },
+  { value: 'pastries', label: 'Pastries' },
+  { value: 'special', label: 'Special Drinks' }
+];
+
+const orderStatuses = [
+  { value: 'new', label: 'New', color: '#007bff' },
+  { value: 'pending', label: 'Pending', color: '#ffc107' },
+  { value: 'completed', label: 'Completed', color: '#28a745' }
+];
+
+// Error Boundary Component
+class AdminErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Admin Panel Error:', error, errorInfo);
+    // Log to error reporting service
+    this.logErrorToService(error, errorInfo);
+  }
+
+  logErrorToService = (error, errorInfo) => {
+    // Implement error reporting (e.g., Sentry, LogRocket)
+    const errorReport = {
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      url: window.location.href
+    };
+
+    // Send to error reporting service
+    console.error('Error Report:', errorReport);
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '20px',
+          textAlign: 'center',
+          backgroundColor: '#f8d7da',
+          border: '1px solid #f5c6cb',
+          borderRadius: '8px',
+          margin: '20px'
+        }}>
+          <h2>Something went wrong</h2>
+          <p>Please refresh the page or contact support if the problem persists.</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer'
+            }}
+          >
+            Refresh Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const AdminPanel = () => {
-  const [menuItems, setMenuItems] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [stats, setStats] = useState({});
-  const [salesAnalytics, setSalesAnalytics] = useState({
-    totalSales: 0,
-    bestSellingItem: null,
-    worstSellingItem: null
+  // Consolidated state management
+  const [state, setState] = useState({
+    // Data states
+    menuItems: [],
+    orders: [],
+    stats: {},
+    salesAnalytics: {
+      totalSales: 0,
+      highestOrder: null,
+      lowestOrder: null,
+      bestSellingItem: null,
+      worstSellingItem: null
+    },
+
+    // UI states
+    activeTab: 'dashboard',
+    selectedDate: new Date().toISOString().split('T')[0],
+    loading: false,
+    error: null,
+
+    // Auth states
+    isLoggedIn: false,
+    authChecked: false,
+
+    // Form states
+    form: {
+      nameEN: '',
+      nameAR: '',
+      descriptionEN: '',
+      descriptionAR: '',
+      priceEN: '',
+      priceAR: '',
+      category: 'coffee',
+      image: '',
+      sizes: [
+        { name: { EN: '250g', AR: '250 جرام' }, price: { EN: '', AR: '' }, isDefault: false },
+        { name: { EN: '500g', AR: '500 جرام' }, price: { EN: '', AR: '' }, isDefault: true },
+        { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: '', AR: '' }, isDefault: false }
+      ]
+    },
+    selectedFile: null,
+    editingId: null
   });
-  const [form, setForm] = useState({
-    nameEN: '',
-    nameAR: '',
-    descriptionEN: '',
-    descriptionAR: '',
-    priceEN: '',
-    priceAR: '',
-    category: 'coffee',
-    image: '',
-    sizes: [
-      { name: { EN: '250g', AR: '250 جرام' }, price: { EN: '', AR: '' }, isDefault: false },
-      { name: { EN: '500g', AR: '500 جرام' }, price: { EN: '', AR: '' }, isDefault: true },
-      { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: '', AR: '' }, isDefault: false }
-    ]
-  });
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('menu');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const navigate = useNavigate();
 
-  useEffect(() => {
-    // Check authentication on component mount - only required for admin operations
-    checkAuthentication();
+  // Destructure state variables for easier access
+  const {
+    menuItems,
+    orders,
+    stats,
+    salesAnalytics,
+    activeTab,
+    selectedDate,
+    loading,
+    error,
+    isLoggedIn,
+    authChecked,
+    form,
+    selectedFile,
+    editingId
+  } = state;
 
-    // Set up periodic token validation check (every 5 minutes)
-    const tokenCheckInterval = setInterval(async () => {
-      if (isLoggedIn) {
-        const isAuthenticated = await api.checkAuthAndHandleExpiration();
-        if (!isAuthenticated) {
-          setIsLoggedIn(false);
-        }
-      }
-    }, 5 * 60 * 1000); // 5 minutes
-
-    return () => clearInterval(tokenCheckInterval);
-  }, []);
-
-  const checkAuthentication = async () => {
-    const isAuthenticated = await api.checkAuthAndHandleExpiration();
-    setIsLoggedIn(isAuthenticated);
-
-    if (isAuthenticated) {
-      loadData();
-    }
-  };
-
-  const loadData = async () => {
-    console.log('Loading data for tab:', activeTab);
-    try {
-      // Check authentication before loading data
-      const isAuthenticated = await api.checkAuthAndHandleExpiration();
-      if (!isAuthenticated) {
-        setIsLoggedIn(false);
-        return;
-      }
-
-      if (activeTab === 'menu') {
-        const items = await api.fetchMenu();
-        console.log('Fetched menu items:', items.length, items);
-        setMenuItems(items);
-      } else if (activeTab === 'orders') {
-        const ordersData = await api.getOrders();
-        setOrders(ordersData);
-      } else if (activeTab === 'dashboard') {
-        const statsData = await api.getAdminStats();
-        setStats(statsData);
-
-        // Load additional data for sales analytics
-        const ordersData = await api.getOrders();
-        const items = await api.fetchMenu();
-
-        // Calculate sales analytics
-        calculateSalesAnalytics(ordersData, items);
-      }
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      // If it's an authentication error, logout
-      if (error.message.includes('401') || error.message.includes('403') || error.message.includes('token')) {
-        setIsLoggedIn(false);
-        api.logoutAdmin();
-      } else {
-        alert('Failed to load data: ' + error.message);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      loadData();
-    }
-  }, [activeTab, isLoggedIn]);
-
+  // Sales analytics calculation function
   const calculateSalesAnalytics = (ordersData, items) => {
     // Calculate total sales
-    const totalSales = ordersData.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const totalSales = ordersData.reduce((sum, order) => sum + (order.total || 0), 0);
+
+    // Find highest and lowest single orders
+    let highestOrder = null;
+    let lowestOrder = null;
+    let maxOrderTotal = -1;
+    let minOrderTotal = Infinity;
+
+    ordersData.forEach(order => {
+      const orderTotal = order.total || 0;
+      if (orderTotal > maxOrderTotal) {
+        maxOrderTotal = orderTotal;
+        highestOrder = order;
+      }
+      if (orderTotal < minOrderTotal && orderTotal > 0) { // Only consider orders with positive totals
+        minOrderTotal = orderTotal;
+        lowestOrder = order;
+      }
+    });
 
     // Calculate item sales
     const itemSales = {};
@@ -159,21 +217,219 @@ const AdminPanel = () => {
       }
     });
 
-    setSalesAnalytics({
+    return {
       totalSales,
+      highestOrder,
+      lowestOrder,
       bestSellingItem,
       worstSellingItem
-    });
+    };
   };
+
+  // Memoized calculations for performance
+  const memoizedSalesAnalytics = useMemo(() => {
+    if (!orders.length || !menuItems.length) return salesAnalytics;
+
+    return calculateSalesAnalytics(orders, menuItems);
+  }, [orders, menuItems, salesAnalytics]);
+
+  // Memoized categories for performance
+  const memoizedCategories = useMemo(() => categories, []);
+
+  // Memoized order statuses for performance
+  const memoizedOrderStatuses = useMemo(() => orderStatuses, []);
+
+  // Utility functions for production robustness
+  const updateState = useCallback((updates) => {
+    setState(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  const handleError = useCallback((error, context = 'Unknown error') => {
+    console.error(`AdminPanel Error [${context}]:`, error);
+
+    // Categorize errors for better handling
+    let errorMessage = 'An unexpected error occurred';
+    let shouldLogout = false;
+
+    if (error.message?.includes('401') || error.message?.includes('403')) {
+      errorMessage = 'Your session has expired. Please log in again.';
+      shouldLogout = true;
+    } else if (error.message?.includes('500')) {
+      errorMessage = 'Server error. Please try again later.';
+    } else if (error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
+      errorMessage = 'Network error. Please check your connection.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    updateState({
+      error: errorMessage,
+      loading: false
+    });
+
+    if (shouldLogout) {
+      handleLogout();
+    }
+
+    // Show user-friendly error notification
+    showNotification(errorMessage, 'error');
+  }, []);
+
+  const showNotification = (message, type = 'info') => {
+    // Implement toast notification system
+    // For now, use a simple alert, but in production use a proper notification library
+    const colors = {
+      success: '#d4edda',
+      error: '#f8d7da',
+      warning: '#fff3cd',
+      info: '#d1ecf1'
+    };
+
+    // Create a temporary notification element
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${colors[type]};
+      color: #333;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 10000;
+      max-width: 400px;
+      font-weight: 500;
+    `;
+    notification.textContent = message;
+
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 5000);
+  };
+
+  // Retry mechanism for API calls
+  const withRetry = async (fn, maxRetries = 3, delay = 1000) => {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await fn();
+      } catch (error) {
+        if (i === maxRetries - 1) throw error;
+
+        // Don't retry auth errors
+        if (error.message?.includes('401') || error.message?.includes('403')) {
+          throw error;
+        }
+
+        console.warn(`Attempt ${i + 1} failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Check authentication on component mount - only required for admin operations
+    checkAuthentication();
+
+    // Set up periodic token validation check (every 5 minutes)
+    const tokenCheckInterval = setInterval(async () => {
+      if (state.isLoggedIn) {
+        const isAuthenticated = await api.checkAuthAndHandleExpiration();
+        if (!isAuthenticated) {
+          updateState({ isLoggedIn: false });
+        }
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(tokenCheckInterval);
+  }, []);
+
+  const checkAuthentication = useCallback(async () => {
+    try {
+      updateState({ authChecked: false });
+      const isAuthenticated = await withRetry(() => api.checkAuthAndHandleExpiration());
+      updateState({
+        isLoggedIn: isAuthenticated,
+        authChecked: true,
+        error: null
+      });
+      return isAuthenticated;
+    } catch (error) {
+      handleError(error, 'Authentication check');
+      updateState({
+        isLoggedIn: false,
+        authChecked: true
+      });
+      return false;
+    }
+  }, [handleError, updateState]);
+
+  const loadData = useCallback(async (tab = state.activeTab) => {
+    if (!state.isLoggedIn) return;
+
+    try {
+      updateState({ loading: true, error: null });
+
+      const data = await withRetry(async () => {
+        const results = {};
+
+        if (tab === 'menu') {
+          const menuResponse = await api.fetchMenu();
+          results.menuItems = menuResponse.items || [];
+        } else if (tab === 'orders') {
+          const ordersResponse = await api.getOrders();
+          results.orders = ordersResponse.orders || [];
+        } else if (tab === 'dashboard') {
+          const [statsData, ordersData, menuData] = await Promise.allSettled([
+            api.getAdminStats(state.selectedDate),
+            api.getOrders(state.selectedDate),
+            api.fetchMenu()
+          ]);
+
+          results.stats = statsData.status === 'fulfilled' ? statsData.value : {};
+          results.orders = ordersData.status === 'fulfilled' ? (ordersData.value.orders || []) : [];
+          results.menuItems = menuData.status === 'fulfilled' ? menuData.value.items || [] : [];
+
+          // Calculate sales analytics even if some data fails
+          if (results.orders.length > 0 && results.menuItems.length > 0) {
+            results.salesAnalytics = calculateSalesAnalytics(results.orders, results.menuItems);
+          }
+        }
+
+        return results;
+      });
+
+      updateState({
+        ...data,
+        loading: false
+      });
+
+    } catch (error) {
+      handleError(error, `Loading ${tab} data`);
+    }
+  }, [state.isLoggedIn, state.activeTab, state.selectedDate, handleError, updateState]);
+
+  useEffect(() => {
+    if (state.isLoggedIn) {
+      loadData();
+    }
+  }, [state.activeTab, state.isLoggedIn, state.selectedDate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    updateState({
+      form: { ...state.form, [name]: value }
+    });
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    setSelectedFile(file);
+    updateState({
+      selectedFile: file
+    });
   };
 
   const uploadFile = async (file) => {
@@ -219,31 +475,31 @@ const AdminPanel = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    updateState({ loading: true });
 
     try {
       // Check authentication before proceeding
       const isAuthenticated = await api.checkAuthAndHandleExpiration();
       if (!isAuthenticated) {
-        setIsLoggedIn(false);
+        updateState({ isLoggedIn: false });
         alert('Your session has expired. Please log in again.');
         return;
       }
 
-      let imageUrl = form.image;
+      let imageUrl = state.form.image;
 
       // Upload file if selected
-      if (selectedFile) {
-        imageUrl = await uploadFile(selectedFile);
+      if (state.selectedFile) {
+        imageUrl = await uploadFile(state.selectedFile);
       }
 
       const itemData = {
-        name: { EN: form.nameEN, AR: form.nameAR },
-        description: { EN: form.descriptionEN, AR: form.descriptionAR },
-        price: { EN: parseFloat(form.priceEN), AR: form.priceAR },
-        category: form.category,
+        name: { EN: state.form.nameEN, AR: state.form.nameAR },
+        description: { EN: state.form.descriptionEN, AR: state.form.descriptionAR },
+        price: { EN: parseFloat(state.form.priceEN), AR: state.form.priceAR },
+        category: state.form.category,
         image: imageUrl,
-        sizes: form.sizes.map(size => ({
+        sizes: state.form.sizes.map(size => ({
           name: size.name,
           price: {
             EN: parseFloat(size.price.EN),
@@ -253,8 +509,8 @@ const AdminPanel = () => {
         }))
       };
 
-      if (editingId) {
-        await api.updateMenuItem(editingId, itemData);
+      if (state.editingId) {
+        await api.updateMenuItem(state.editingId, itemData);
         alert('Menu item updated successfully');
       } else {
         await api.createMenuItem(itemData);
@@ -265,34 +521,36 @@ const AdminPanel = () => {
     } catch (error) {
       alert('Failed to save menu item: ' + error.message);
     } finally {
-      setLoading(false);
+      updateState({ loading: false });
     }
   };
 
   const handleEdit = (item) => {
-    setForm({
-      nameEN: item.name.EN,
-      nameAR: item.name.AR,
-      descriptionEN: item.description.EN,
-      descriptionAR: item.description.AR,
-      priceEN: item.price.EN.toString(),
-      priceAR: item.price.AR,
-      category: item.category,
-      image: item.image,
-      sizes: item.sizes && item.sizes.length > 0 ? item.sizes.map(size => ({
-        name: size.name,
-        price: {
-          EN: size.price.EN.toString(),
-          AR: size.price.AR
-        },
-        isDefault: size.isDefault || false
-      })) : [
-        { name: { EN: '250g', AR: '250 جرام' }, price: { EN: (item.price.EN * 0.8).toString(), AR: item.price.AR }, isDefault: false },
-        { name: { EN: '500g', AR: '500 جرام' }, price: { EN: item.price.EN.toString(), AR: item.price.AR }, isDefault: true },
-        { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: (item.price.EN * 1.8).toString(), AR: item.price.AR }, isDefault: false }
-      ]
+    updateState({
+      form: {
+        nameEN: item.name.EN,
+        nameAR: item.name.AR,
+        descriptionEN: item.description.EN,
+        descriptionAR: item.description.AR,
+        priceEN: item.price.EN.toString(),
+        priceAR: item.price.AR,
+        category: item.category,
+        image: item.image,
+        sizes: item.sizes && item.sizes.length > 0 ? item.sizes.map(size => ({
+          name: size.name,
+          price: {
+            EN: size.price.EN.toString(),
+            AR: size.price.AR
+          },
+          isDefault: size.isDefault || false
+        })) : [
+          { name: { EN: '250g', AR: '250 جرام' }, price: { EN: (item.price.EN * 0.8).toString(), AR: item.price.AR }, isDefault: false },
+          { name: { EN: '500g', AR: '500 جرام' }, price: { EN: item.price.EN.toString(), AR: item.price.AR }, isDefault: true },
+          { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: (item.price.EN * 1.8).toString(), AR: item.price.AR }, isDefault: false }
+        ]
+      },
+      editingId: item._id
     });
-    setEditingId(item._id);
   };
 
   const handleDelete = async (id) => {
@@ -303,7 +561,7 @@ const AdminPanel = () => {
       // Check authentication before deleting
       const isAuthenticated = await api.checkAuthAndHandleExpiration();
       if (!isAuthenticated) {
-        setIsLoggedIn(false);
+        updateState({ isLoggedIn: false });
         alert('Your session has expired. Please log in again.');
         return;
       }
@@ -317,7 +575,7 @@ const AdminPanel = () => {
     } catch (error) {
       console.error('Failed to delete menu item:', error);
       if (error.message.includes('401') || error.message.includes('403') || error.message.includes('token')) {
-        setIsLoggedIn(false);
+        updateState({ isLoggedIn: false });
         api.logoutAdmin();
         alert('Your session has expired. Please log in again.');
       } else {
@@ -331,7 +589,7 @@ const AdminPanel = () => {
       // Check authentication before updating
       const isAuthenticated = await api.checkAuthAndHandleExpiration();
       if (!isAuthenticated) {
-        setIsLoggedIn(false);
+        updateState({ isLoggedIn: false });
         alert('Your session has expired. Please log in again.');
         return;
       }
@@ -342,7 +600,7 @@ const AdminPanel = () => {
     } catch (error) {
       console.error('Failed to update order status:', error);
       if (error.message.includes('401') || error.message.includes('403') || error.message.includes('token')) {
-        setIsLoggedIn(false);
+        updateState({ isLoggedIn: false });
         api.logoutAdmin();
         alert('Your session has expired. Please log in again.');
       } else {
@@ -352,42 +610,31 @@ const AdminPanel = () => {
   };
 
   const resetForm = () => {
-    setForm({
-      nameEN: '',
-      nameAR: '',
-      descriptionEN: '',
-      descriptionAR: '',
-      priceEN: '',
-      priceAR: '',
-      category: 'coffee',
-      image: '',
-      sizes: [
-        { name: { EN: '250g', AR: '250 جرام' }, price: { EN: '', AR: '' }, isDefault: false },
-        { name: { EN: '500g', AR: '500 جرام' }, price: { EN: '', AR: '' }, isDefault: true },
-        { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: '', AR: '' }, isDefault: false }
-      ]
+    updateState({
+      form: {
+        nameEN: '',
+        nameAR: '',
+        descriptionEN: '',
+        descriptionAR: '',
+        priceEN: '',
+        priceAR: '',
+        category: 'coffee',
+        image: '',
+        sizes: [
+          { name: { EN: '250g', AR: '250 جرام' }, price: { EN: '', AR: '' }, isDefault: false },
+          { name: { EN: '500g', AR: '500 جرام' }, price: { EN: '', AR: '' }, isDefault: true },
+          { name: { EN: '1kg', AR: '1 كيلو' }, price: { EN: '', AR: '' }, isDefault: false }
+        ]
+      },
+      selectedFile: null,
+      editingId: null
     });
-    setSelectedFile(null);
-    setEditingId(null);
   };
 
   const handleLogout = () => {
     api.logoutAdmin();
     navigate('/admin/login');
   };
-
-  const categories = [
-    { value: 'coffee', label: 'Coffee Beans' },
-    { value: 'tea', label: 'Tea' },
-    { value: 'pastries', label: 'Pastries' },
-    { value: 'special', label: 'Special Drinks' }
-  ];
-
-  const orderStatuses = [
-    { value: 'new', label: 'New', color: '#007bff' },
-    { value: 'pending', label: 'Pending', color: '#ffc107' },
-    { value: 'completed', label: 'Completed', color: '#28a745' }
-  ];
 
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -402,21 +649,12 @@ const AdminPanel = () => {
               <i className="fas fa-sign-in-alt"></i> Login for Admin Actions
             </button>
           ) : (
-            <>
-              <button
-                onClick={() => navigate('/dashboard')}
-                style={{ padding: '10px 15px', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                title="Go to Order Management Dashboard"
-              >
-                <i className="fas fa-tachometer-alt"></i> Order Dashboard
-              </button>
-              <button
-                onClick={handleLogout}
-                style={{ padding: '10px 15px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-              >
-                <i className="fas fa-sign-out-alt"></i> Logout
-              </button>
-            </>
+            <button
+              onClick={handleLogout}
+              style={{ padding: '10px 15px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+            >
+              <i className="fas fa-sign-out-alt"></i> Logout
+            </button>
           )}
         </div>
       </div>
@@ -424,7 +662,7 @@ const AdminPanel = () => {
       {/* Navigation Tabs */}
       <div style={{ marginBottom: '30px', borderBottom: '2px solid #e9ecef' }}>
         <button
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => updateState({ activeTab: 'dashboard' })}
           style={{
             padding: '12px 24px',
             background: activeTab === 'dashboard' ? '#007bff' : 'transparent',
@@ -439,7 +677,7 @@ const AdminPanel = () => {
           Dashboard
         </button>
         <button
-          onClick={() => setActiveTab('menu')}
+          onClick={() => updateState({ activeTab: 'menu' })}
           style={{
             padding: '12px 24px',
             background: activeTab === 'menu' ? '#007bff' : 'transparent',
@@ -454,7 +692,7 @@ const AdminPanel = () => {
           Menu Management
         </button>
         <button
-          onClick={() => setActiveTab('orders')}
+          onClick={() => updateState({ activeTab: 'orders' })}
           style={{
             padding: '12px 24px',
             background: activeTab === 'orders' ? '#007bff' : 'transparent',
@@ -468,7 +706,7 @@ const AdminPanel = () => {
           Order Management
         </button>
         <button
-          onClick={() => setActiveTab('inventory')}
+          onClick={() => updateState({ activeTab: 'inventory' })}
           style={{
             padding: '12px 24px',
             background: activeTab === 'inventory' ? '#007bff' : 'transparent',
@@ -486,7 +724,28 @@ const AdminPanel = () => {
       {/* Dashboard Tab */}
       {activeTab === 'dashboard' && (
         <div>
-          <h2>Dashboard Overview</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2>Dashboard Overview</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label htmlFor="dateSelector" style={{ fontWeight: 'bold', color: '#333' }}>
+                Select Date:
+              </label>
+              <input
+                id="dateSelector"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => updateState({ selectedDate: e.target.value })}
+                style={{
+                  padding: '8px 12px',
+                  border: '2px solid #007bff',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  backgroundColor: 'white',
+                  cursor: 'pointer'
+                }}
+              />
+            </div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
             <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '8px', textAlign: 'center' }}>
               <h3 style={{ margin: '0 0 10px 0', color: '#007bff' }}>Total Orders</h3>
@@ -505,54 +764,112 @@ const AdminPanel = () => {
               <p style={{ fontSize: '2em', fontWeight: 'bold', margin: '0' }}>{stats.totalMenuItems || 0}</p>
             </div>
             <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '8px', textAlign: 'center' }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#fd7e14' }}>Today's Orders</h3>
+              <h3 style={{ margin: '0 0 10px 0', color: '#fd7e14' }}>Selected Date Orders</h3>
               <p style={{ fontSize: '2em', fontWeight: 'bold', margin: '0' }}>{stats.todaysOrders || 0}</p>
+              <p style={{ fontSize: '0.9em', color: '#666', margin: '5px 0 0 0' }}>
+                {new Date(selectedDate).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </p>
             </div>
           </div>
 
           {/* Sales Analytics Section */}
-          <h3 style={{ marginTop: '40px', marginBottom: '20px', color: '#333' }}>Sales Analytics</h3>
+          <h3 style={{ marginTop: '40px', marginBottom: '20px', color: '#333' }}>
+            Sales Analytics - {new Date(selectedDate).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            })}
+          </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
             <div style={{ background: '#e8f5e8', padding: '20px', borderRadius: '8px', border: '2px solid #28a745' }}>
               <h3 style={{ margin: '0 0 15px 0', color: '#28a745' }}>💰 Total Sales Amount</h3>
               <p style={{ fontSize: '2.5em', fontWeight: 'bold', margin: '0', color: '#28a745' }}>
-                {salesAnalytics.totalSales.toFixed(2)} AED
+                {memoizedSalesAnalytics.totalSales.toFixed(2)} AED
               </p>
             </div>
 
-            {salesAnalytics.bestSellingItem && (
-              <div style={{ background: '#fff3cd', padding: '20px', borderRadius: '8px', border: '2px solid #ffc107' }}>
-                <h3 style={{ margin: '0 0 15px 0', color: '#856404' }}>🔥 Best Selling Item</h3>
-                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>{salesAnalytics.bestSellingItem.name.EN}</h4>
+            {memoizedSalesAnalytics.highestOrder && (
+              <div style={{ background: '#d4edda', padding: '20px', borderRadius: '8px', border: '2px solid #28a745' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#155724' }}>🏆 Highest Single Order</h3>
+                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Order #{memoizedSalesAnalytics.highestOrder._id.slice(-6)}</h4>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
-                  <strong>Sold:</strong> {salesAnalytics.bestSellingItem.totalSold} units
+                  <strong>Customer:</strong> {memoizedSalesAnalytics.highestOrder.customerName}
                 </p>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
-                  <strong>Revenue:</strong> {salesAnalytics.bestSellingItem.totalRevenue.toFixed(2)} AED
+                  <strong>Amount:</strong> {memoizedSalesAnalytics.highestOrder.total.toFixed(2)} AED
+                </p>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Items:</strong> {memoizedSalesAnalytics.highestOrder.items?.length || 0} items
+                </p>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Time:</strong> {new Date(memoizedSalesAnalytics.highestOrder.createdAt).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            )}
+
+            {memoizedSalesAnalytics.lowestOrder && (
+              <div style={{ background: '#f8d7da', padding: '20px', borderRadius: '8px', border: '2px solid #dc3545' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#721c24' }}>📊 Lowest Single Order</h3>
+                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Order #{memoizedSalesAnalytics.lowestOrder._id.slice(-6)}</h4>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Customer:</strong> {memoizedSalesAnalytics.lowestOrder.customerName}
+                </p>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Amount:</strong> {memoizedSalesAnalytics.lowestOrder.total.toFixed(2)} AED
+                </p>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Items:</strong> {memoizedSalesAnalytics.lowestOrder.items?.length || 0} items
+                </p>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Time:</strong> {new Date(memoizedSalesAnalytics.lowestOrder.createdAt).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            )}
+
+            {memoizedSalesAnalytics.bestSellingItem && (
+              <div style={{ background: '#fff3cd', padding: '20px', borderRadius: '8px', border: '2px solid #ffc107' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#856404' }}>🔥 Best Selling Item</h3>
+                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>{memoizedSalesAnalytics.bestSellingItem.name.EN}</h4>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Sold:</strong> {memoizedSalesAnalytics.bestSellingItem.totalSold} units
+                </p>
+                <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
+                  <strong>Revenue:</strong> {memoizedSalesAnalytics.bestSellingItem.totalRevenue.toFixed(2)} AED
                 </p>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
                   <strong>Price:</strong> {(() => {
-                    const defaultSize = salesAnalytics.bestSellingItem.sizes?.find(size => size.isDefault);
-                    return defaultSize ? defaultSize.price.EN : salesAnalytics.bestSellingItem.price?.EN || 'N/A';
+                    const defaultSize = memoizedSalesAnalytics.bestSellingItem.sizes?.find(size => size.isDefault);
+                    return defaultSize ? defaultSize.price.EN : memoizedSalesAnalytics.bestSellingItem.price?.EN || 'N/A';
                   })()} AED
                 </p>
               </div>
             )}
 
-            {salesAnalytics.worstSellingItem && (
+            {memoizedSalesAnalytics.worstSellingItem && (
               <div style={{ background: '#f8d7da', padding: '20px', borderRadius: '8px', border: '2px solid #dc3545' }}>
                 <h3 style={{ margin: '0 0 15px 0', color: '#721c24' }}>📉 Lowest Selling Item</h3>
-                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>{salesAnalytics.worstSellingItem.name.EN}</h4>
+                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>{memoizedSalesAnalytics.worstSellingItem.name.EN}</h4>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
-                  <strong>Sold:</strong> {salesAnalytics.worstSellingItem.totalSold} units
+                  <strong>Sold:</strong> {memoizedSalesAnalytics.worstSellingItem.totalSold} units
                 </p>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
-                  <strong>Revenue:</strong> {salesAnalytics.worstSellingItem.totalRevenue.toFixed(2)} AED
+                  <strong>Revenue:</strong> {memoizedSalesAnalytics.worstSellingItem.totalRevenue.toFixed(2)} AED
                 </p>
                 <p style={{ margin: '5px 0', fontSize: '1.1em' }}>
                   <strong>Price:</strong> {(() => {
-                    const defaultSize = salesAnalytics.worstSellingItem.sizes?.find(size => size.isDefault);
-                    return defaultSize ? defaultSize.price.EN : salesAnalytics.worstSellingItem.price?.EN || 'N/A';
+                    const defaultSize = memoizedSalesAnalytics.worstSellingItem.sizes?.find(size => size.isDefault);
+                    return defaultSize ? defaultSize.price.EN : memoizedSalesAnalytics.worstSellingItem.price?.EN || 'N/A';
                   })()} AED
                 </p>
               </div>
@@ -703,7 +1020,7 @@ const AdminPanel = () => {
                   onChange={handleInputChange}
                   style={{ width: '100%', padding: '8px', marginTop: '5px' }}
                 >
-                  {categories.map(cat => (
+                  {memoizedCategories.map(cat => (
                     <option key={cat.value} value={cat.value}>{cat.label}</option>
                   ))}
                 </select>
@@ -728,13 +1045,15 @@ const AdminPanel = () => {
                             name="defaultSize"
                             checked={size.isDefault}
                             onChange={() => {
-                              setForm(prev => ({
-                                ...prev,
-                                sizes: prev.sizes.map((s, i) => ({
-                                  ...s,
-                                  isDefault: i === index
-                                }))
-                              }));
+                              updateState({
+                                form: {
+                                  ...form,
+                                  sizes: form.sizes.map((s, i) => ({
+                                    ...s,
+                                    isDefault: i === index
+                                  }))
+                                }
+                              });
                             }}
                             style={{ marginRight: '5px' }}
                           />
@@ -752,7 +1071,9 @@ const AdminPanel = () => {
                             onChange={(e) => {
                               const newSizes = [...form.sizes];
                               newSizes[index].price.EN = e.target.value;
-                              setForm(prev => ({ ...prev, sizes: newSizes }));
+                              updateState({
+                                form: { ...form, sizes: newSizes }
+                              });
                             }}
                             style={{ width: '100%', padding: '6px', marginTop: '3px' }}
                             required
@@ -766,7 +1087,9 @@ const AdminPanel = () => {
                             onChange={(e) => {
                               const newSizes = [...form.sizes];
                               newSizes[index].price.AR = e.target.value;
-                              setForm(prev => ({ ...prev, sizes: newSizes }));
+                              updateState({
+                                form: { ...form, sizes: newSizes }
+                              });
                             }}
                             style={{ width: '100%', padding: '6px', marginTop: '3px' }}
                             required
@@ -879,14 +1202,14 @@ const AdminPanel = () => {
                 <p><strong>Payment:</strong> {order.paymentMethod}</p>
                 <p><strong>Status:</strong>
                   <span style={{
-                    backgroundColor: orderStatuses.find(s => s.value === order.status)?.color || '#6c757d',
+                    backgroundColor: memoizedOrderStatuses.find(s => s.value === order.status)?.color || '#6c757d',
                     color: 'white',
                     padding: '2px 8px',
                     borderRadius: '4px',
                     fontSize: '12px',
                     marginLeft: '5px'
                   }}>
-                    {orderStatuses.find(s => s.value === order.status)?.label || order.status}
+                    {memoizedOrderStatuses.find(s => s.value === order.status)?.label || order.status}
                   </span>
                 </p>
                 <p><strong>Items:</strong></p>
@@ -913,7 +1236,7 @@ const AdminPanel = () => {
                     onChange={(e) => handleOrderStatusUpdate(order._id, e.target.value)}
                     style={{ padding: '5px', marginRight: '5px' }}
                   >
-                    {orderStatuses.map(status => (
+                    {memoizedOrderStatuses.map(status => (
                       <option key={status.value} value={status.value}>{status.label}</option>
                     ))}
                   </select>

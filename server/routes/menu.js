@@ -3,11 +3,46 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const MenuItem = require('../models/MenuItem');
 
-// Get all menu items
+// Get all menu items with pagination and filtering
 router.get('/', async (req, res) => {
   try {
-    const items = await MenuItem.find();
-    res.json(items);
+    const { page = 1, limit = 50, category, search } = req.query;
+    const skip = (page - 1) * limit;
+
+    // Build query object
+    let query = {};
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+    if (search) {
+      query.$or = [
+        { 'name.EN': { $regex: search, $options: 'i' } },
+        { 'name.AR': { $regex: search, $options: 'i' } },
+        { 'description.EN': { $regex: search, $options: 'i' } },
+        { 'description.AR': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Execute query with pagination
+    const items = await MenuItem.find(query)
+      .select('name description price category image sizes') // Only select needed fields
+      .sort({ category: 1, 'name.EN': 1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean(); // Use lean() for better performance
+
+    // Get total count for pagination
+    const total = await MenuItem.countDocuments(query);
+
+    res.json({
+      items,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      }
+    });
   } catch (error) {
     console.error('Menu fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch menu items' });

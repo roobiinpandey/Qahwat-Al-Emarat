@@ -25,7 +25,8 @@ const authLimiter = rateLimit({
     retryAfter: 900
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: (req) => process.env.DISABLE_AUTH_RATE_LIMIT === 'true'
 });
 
 // Limiter for order placement

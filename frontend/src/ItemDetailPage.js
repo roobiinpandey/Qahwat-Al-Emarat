@@ -18,7 +18,8 @@ const ItemDetailPage = () => {
     // Load item details
     const loadItem = async () => {
       try {
-        const menuItems = await api.fetchMenu();
+        const response = await api.fetchMenu();
+        const menuItems = response.items || [];
         const foundItem = menuItems.find(menuItem => menuItem._id === id);
         if (foundItem) {
           setItem(foundItem);

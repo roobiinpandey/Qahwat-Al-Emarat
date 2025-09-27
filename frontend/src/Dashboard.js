@@ -31,7 +31,8 @@ function Dashboard() {
   const fetchOrders = async () => {
     try {
       const response = await getOrders();
-      setOrders(response);
+      // The API returns { orders: [...], pagination: {...} }
+      setOrders(response.orders || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
     }

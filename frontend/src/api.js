@@ -188,9 +188,12 @@ export async function placeOrder(orderData) {
   return res.json();
 }
 
-export async function getOrders() {
-  const timestamp = Date.now();
-  const res = await fetch(`${API_BASE}/order?t=${timestamp}`, {
+export async function getOrders(date = null) {
+  let url = `${API_BASE}/order`;
+  if (date) {
+    url += `?date=${date}`;
+  }
+  const res = await fetch(url, {
     headers: getAuthHeaders()
   });
 
@@ -221,9 +224,12 @@ export async function updateOrderStatus(orderId, status) {
 }
 
 // Admin functions
-export async function getAdminStats() {
-  const timestamp = Date.now();
-  const res = await fetch(`${API_BASE}/admin/stats?t=${timestamp}`, {
+export async function getAdminStats(date = null) {
+  let url = `${API_BASE}/admin/stats`;
+  if (date) {
+    url += `?date=${date}`;
+  }
+  const res = await fetch(url, {
     headers: getAuthHeaders()
   });
 
