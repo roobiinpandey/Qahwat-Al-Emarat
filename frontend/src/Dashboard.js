@@ -253,6 +253,9 @@ function Dashboard() {
                 {order.items.map(item => (
                   <li key={item._id || item.id}>
                     <span className="item-name">{typeof item.menuItem?.name === 'object' ? item.menuItem.name.EN || item.menuItem.name.AR || 'Unknown Item' : item.menuItem?.name || 'Unknown Item'}</span>
+                    {item.selectedSize && (
+                      <span className="item-size">({typeof item.selectedSize.name === 'object' ? item.selectedSize.name.EN || item.selectedSize.name.AR : item.selectedSize.name})</span>
+                    )}
                     <span className="item-quantity">x{item.quantity}</span>
                   </li>
                 ))}
@@ -403,6 +406,9 @@ function Dashboard() {
                 {selectedOrder.items.map(item => (
                   <li key={item._id || item.id}>
                     <span className="item-name">{typeof item.menuItem?.name === 'object' ? item.menuItem.name.EN || item.menuItem.name.AR || 'Unknown Item' : item.menuItem?.name || 'Unknown Item'}</span>
+                    {item.selectedSize && (
+                      <span className="item-size">({typeof item.selectedSize.name === 'object' ? item.selectedSize.name.EN || item.selectedSize.name.AR : item.selectedSize.name})</span>
+                    )}
                     <span className="item-quantity">x{item.quantity} - {(item.priceAtOrder || (typeof item.menuItem?.price === 'object' ? item.menuItem.price.EN || 0 : item.menuItem?.price || 0)).toFixed(2)} AED</span>
                   </li>
                 ))}
