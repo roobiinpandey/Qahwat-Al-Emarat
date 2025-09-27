@@ -402,12 +402,21 @@ const AdminPanel = () => {
               <i className="fas fa-sign-in-alt"></i> Login for Admin Actions
             </button>
           ) : (
-            <button
-              onClick={handleLogout}
-              style={{ padding: '10px 15px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-            >
-              <i className="fas fa-sign-out-alt"></i> Logout
-            </button>
+            <>
+              <button
+                onClick={() => navigate('/dashboard')}
+                style={{ padding: '10px 15px', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+                title="Go to Order Management Dashboard"
+              >
+                <i className="fas fa-tachometer-alt"></i> Order Dashboard
+              </button>
+              <button
+                onClick={handleLogout}
+                style={{ padding: '10px 15px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                <i className="fas fa-sign-out-alt"></i> Logout
+              </button>
+            </>
           )}
         </div>
       </div>

@@ -14,7 +14,11 @@ function App() {
       <Routes>
         <Route path="/menu" element={<MainPage />} />
         <Route path="/item/:id" element={<ItemDetailPage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/adminpanel" element={
           <ProtectedRoute>

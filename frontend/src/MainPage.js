@@ -455,6 +455,23 @@ function MainPage() {
             }}
             onClick={() => setLanguage('AR')}
           >AR</button>
+          <button
+            style={{
+              padding: '6px 12px',
+              borderRadius: '15px',
+              border: '1px solid #007bff',
+              background: 'transparent',
+              color: '#007bff',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              marginLeft: '10px'
+            }}
+            onClick={() => navigate('/admin/login')}
+            title="Admin Login"
+          >
+            <i className="fas fa-user-shield"></i> Admin
+          </button>
         </div>
       </header>
       <div className="container">
