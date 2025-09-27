@@ -30,7 +30,7 @@ services:
       - key: PASSWORD_REQUIRE_SYMBOLS
         value: true
       - key: ALLOWED_ORIGINS
-        sync: false # Set this to your frontend URL after deployment
+        value: https://qahwat-al-emarat.onrender.com,https://qahwatal-emarat-api.onrender.com
       - key: RATE_LIMIT_WINDOW_MS
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
@@ -47,7 +47,7 @@ services:
     startCommand: npx serve -s build -l 3000
     envVars:
       - key: REACT_APP_API_BASE
-        sync: false # Set this to your API service URL after deployment
+        value: https://qahwatal-emarat-api.onrender.com/api
 
 # Database (MongoDB Atlas recommended for production)
 # Note: Render provides MongoDB hosting, but MongoDB Atlas is recommended for better control

@@ -49,7 +49,8 @@ function MainPage() {
         description: item.description,
         price: item.price,
         category: item.category,
-        image: item.image
+        image: item.image,
+        sizes: item.sizes || [] // Include sizes array
       }));
       setMenuItems(mappedItems);
     }).catch((error) => {
