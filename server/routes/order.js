@@ -64,13 +64,27 @@ router.post('/', orderLimiter, [
       }
     }
 
-    // Create order items with current prices
+    // Create order items with selected size prices
     const orderItems = items.map(item => {
       const menuItem = menuItems.find(mi => mi._id.toString() === item.menuItem);
+
+      // Use selected size price if available, otherwise use base price
+      let priceAtOrder = menuItem.price.EN; // Default to base price
+      let selectedSize = null;
+
+      if (item.selectedSize && item.selectedSize.price) {
+        // Use the selected size price sent by frontend
+        priceAtOrder = typeof item.selectedSize.price === 'object' ?
+          item.selectedSize.price.EN || menuItem.price.EN :
+          item.selectedSize.price || menuItem.price.EN;
+        selectedSize = item.selectedSize;
+      }
+
       return {
         menuItem: item.menuItem,
+        selectedSize: selectedSize,
         quantity: item.quantity,
-        priceAtOrder: menuItem.price.EN
+        priceAtOrder: priceAtOrder
       };
     });
 
