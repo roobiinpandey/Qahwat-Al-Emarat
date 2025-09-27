@@ -74,13 +74,6 @@ Desktop.ini
 # Uploads (user uploaded files)
 uploads/
 
-# Backups
-backup/
-frontend/backup/
-server/backup/
-*.tar.gz
-*.zip
-
 # Temporary files
 *.tmp
 *.bak
