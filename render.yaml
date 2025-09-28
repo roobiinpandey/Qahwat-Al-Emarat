@@ -30,7 +30,7 @@ services:
       - key: PASSWORD_REQUIRE_SYMBOLS
         value: true
       - key: ALLOWED_ORIGINS
-        value: https://qahwatal-emarat.onrender.com,https://qahwatal-emarat-frontend.onrender.com,https://qahwatal-emarat-api.onrender.com,https://*.onrender.com
+        value: https://qahwat-al-emarat.onrender.com,https://qahwatal-emarat-frontend.onrender.com,https://qahwatal-emarat-api.onrender.com,https://*.onrender.com
       - key: RATE_LIMIT_WINDOW_MS
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
