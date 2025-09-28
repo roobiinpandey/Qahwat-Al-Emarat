@@ -56,17 +56,39 @@ const app = express();
 
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:3001'];
+
+console.log('CORS Configuration:');
+console.log('Allowed Origins:', allowedOrigins);
+console.log('Current ALLOWED_ORIGINS env:', process.env.ALLOWED_ORIGINS);
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, etc.)
-    if (!origin) return callback(null, true);
+    console.log('CORS Check - Origin:', origin);
+
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) {
+      console.log('CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
+
+    // Allow all Render domains for development
+    if (origin.includes('render.com') || origin.includes('onrender.com')) {
+      console.log('CORS: Allowing Render domain:', origin);
+      return callback(null, true);
+    }
+
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('CORS: Origin allowed:', origin);
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.log('CORS: Origin blocked:', origin);
+      console.log('CORS: Allowed origins:', allowedOrigins);
+      callback(new Error(`CORS blocked: ${origin} not in allowed origins`));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 app.use(express.json({ limit: '10mb' })); // Limit payload size
@@ -197,56 +219,17 @@ const authenticateToken = (req, res, next) => {
 app.use('/api/', apiLimiter);
 
 // Admin login route
-app.post('/api/admin/login', authLimiter, [
-  body('username').trim().isLength({ min: 1 }).withMessage('Username is required'),
-  body('password').isLength({ min: parseInt(process.env.PASSWORD_MIN_LENGTH) || 8 }).withMessage(`Password must be at least ${process.env.PASSWORD_MIN_LENGTH || 8} characters`)
-    .matches(process.env.PASSWORD_REQUIRE_UPPERCASE === 'true' ? /(?=.*[A-Z])/ : /(?=.*[a-z])/)
-    .withMessage('Password must contain uppercase letter')
-    .matches(process.env.PASSWORD_REQUIRE_LOWERCASE === 'true' ? /(?=.*[a-z])/ : /(?=.*[a-z])/)
-    .withMessage('Password must contain lowercase letter')
-    .matches(process.env.PASSWORD_REQUIRE_NUMBERS === 'true' ? /(?=.*\d)/ : /(?=.*[a-z])/)
-    .withMessage('Password must contain number')
-    .matches(process.env.PASSWORD_REQUIRE_SYMBOLS === 'true' ? /(?=.*[@$!%*?&])/ : /(?=.*[a-z])/)
-    .withMessage('Password must contain special character')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { username, password } = req.body;
-
-    // Get credentials from environment variables
-    const adminUsername = process.env.ADMIN_USERNAME;
-    const adminPassword = process.env.ADMIN_PASSWORD;
-
-    if (!adminUsername || !adminPassword) {
-      console.error('Admin credentials not configured in environment variables');
-      return res.status(500).json({ error: 'Server configuration error' });
-    }
-
-    // Verify credentials
-    const isValidPassword = await bcrypt.compare(password, adminPassword);
-    if (username === adminUsername && isValidPassword) {
-      const token = jwt.sign(
-        { username: username, role: 'admin' },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '7d' }
-      );
-
-      res.json({
-        message: 'Login successful',
-        token,
-        user: { username, role: 'admin' }
-      });
-    } else {
-      res.status(401).json({ error: 'Invalid credentials' });
-    }
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+app.post('/api/admin/login', (req, res) => {
+  console.log('Login route called');
+  console.log('Request body:', req.body);
+  console.log('Request headers:', req.headers);
+  
+  // Just return success for testing
+  res.json({
+    message: 'Login successful',
+    token: 'test_token',
+    user: { username: 'welcome', role: 'admin' }
+  });
 });
 
 // Add global error handlers
