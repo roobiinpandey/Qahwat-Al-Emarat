@@ -1,53 +1,102 @@
-services:services:services:
+services:services:services:services:
 
-  # Backend API Service
+  # Backend API Service (Web Service)
 
-  - type: web  # Backend API Service  # Backend API Service
+  - type: web  # Backend API Service
 
     name: qahwatal-emarat-api
 
-    runtime: node  - type: web  - type: web
+    runtime: node  - type: web  # Backend API Service  # Backend API Service
 
     rootDir: server
 
-    buildCommand: npm install    name: qahwatal-emarat-api    name: qahwatal-emarat-api
+    buildCommand: npm install    name: qahwatal-emarat-api
 
     startCommand: npm start
 
-    envVars:    runtime: node    runtime: node
+    envVars:    runtime: node  - type: web  - type: web
 
       - key: NODE_ENV
 
-        value: production    rootDir: server    rootDir: server
+        value: production    rootDir: server
 
       - key: MONGODB_URI
 
-        value: mongodb+srv://roobiinpandey_db_user:Nepal1590@qahwatalemarates.c5rwjak.mongodb.net/?retryWrites=true&w=majority&appName=QahwatAlemarates    buildCommand: npm install    buildCommand: npm install
+        value: mongodb+srv://roobiinpandey_db_user:Nepal1590@qahwatalemarates.c5rwjak.mongodb.net/?retryWrites=true&w=majority&appName=QahwatAlemarates    buildCommand: npm install    name: qahwatal-emarat-api    name: qahwatal-emarat-api
 
       - key: JWT_SECRET
 
-        value: e611b944e03f0f78306c104ac2f560f825df47b8da1754eb47ee84fcb405ceb0    startCommand: npm start    startCommand: npm start
+        value: e611b944e03f0f78306c104ac2f560f825df47b8da1754eb47ee84fcb405ceb0    startCommand: npm start
 
       - key: JWT_EXPIRE
 
-        value: 7d    envVars:    envVars:
+        value: 7d    envVars:    runtime: node    runtime: node
 
       - key: ADMIN_USERNAME
 
-        value: admin      - key: NODE_ENV      - key: NODE_ENV
+        value: admin      - key: NODE_ENV
 
       - key: ADMIN_PASSWORD
 
-        value: $2a$12$92Rh/DRKSYjy8UblWX3up.cvN48mrCscC2cMsvt1wKEP7Vsm0lHT.        value: production        value: production
+        value: $2a$12$92Rh/DRKSYjy8UblWX3up.cvN48mrCscC2cMsvt1wKEP7Vsm0lHT.        value: production    rootDir: server    rootDir: server
 
       - key: PASSWORD_MIN_LENGTH
 
-        value: 8      - key: MONGODB_URI      - key: MONGODB_URI
+        value: 8      - key: MONGODB_URI
 
       - key: PASSWORD_REQUIRE_UPPERCASE
 
-        value: false        value: mongodb+srv://roobiinpandey_db_user:Nepal1590@qahwatalemarates.c5rwjak.mongodb.net/?retryWrites=true&w=majority&appName=QahwatAlemarates        sync: false # ⚠️  CRITICAL: Set this in Render dashboard with your secure MongoDB URI
+        value: false        value: mongodb+srv://roobiinpandey_db_user:Nepal1590@qahwatalemarates.c5rwjak.mongodb.net/?retryWrites=true&w=majority&appName=QahwatAlemarates    buildCommand: npm install    buildCommand: npm install
 
+      - key: PASSWORD_REQUIRE_LOWERCASE
+
+        value: true      - key: JWT_SECRET
+
+      - key: PASSWORD_REQUIRE_NUMBERS
+
+        value: true        value: e611b944e03f0f78306c104ac2f560f825df47b8da1754eb47ee84fcb405ceb0    startCommand: npm start    startCommand: npm start
+
+      - key: PASSWORD_REQUIRE_SYMBOLS
+
+        value: true      - key: JWT_EXPIRE
+
+      - key: ALLOWED_ORIGINS
+
+        value: https://qahwatal-emarat.onrender.com,https://qahwatal-emarat-api.onrender.com        value: 7d    envVars:    envVars:
+
+      - key: RATE_LIMIT_WINDOW_MS
+
+        value: 900000      - key: ADMIN_USERNAME
+
+      - key: RATE_LIMIT_MAX_REQUESTS
+
+        value: 100        value: admin      - key: NODE_ENV      - key: NODE_ENV
+
+      - key: FORCE_HTTPS
+
+        value: true      - key: ADMIN_PASSWORD
+
+
+
+  # Frontend Static Site (RECOMMENDED for React apps - cheaper and faster)        value: $2a$12$92Rh/DRKSYjy8UblWX3up.cvN48mrCscC2cMsvt1wKEP7Vsm0lHT.        value: production        value: production
+
+  - type: static
+
+    name: qahwatal-emarat-frontend      - key: PASSWORD_MIN_LENGTH
+
+    rootDir: frontend
+
+    buildCommand: npm install && npm run build        value: 8      - key: MONGODB_URI      - key: MONGODB_URI
+
+    publishDir: build
+
+    envVars:      - key: PASSWORD_REQUIRE_UPPERCASE
+
+      - key: REACT_APP_API_BASE
+
+        value: https://qahwatal-emarat-api.onrender.com/api</content>        value: false        value: mongodb+srv://roobiinpandey_db_user:Nepal1590@qahwatalemarates.c5rwjak.mongodb.net/?retryWrites=true&w=majority&appName=QahwatAlemarates        sync: false # ⚠️  CRITICAL: Set this in Render dashboard with your secure MongoDB URI
+
+<parameter name="filePath">/Volumes/PERSONAL/Qahwatal Emarat/render.yaml
       - key: PASSWORD_REQUIRE_LOWERCASE
 
         value: true      - key: JWT_SECRET      - key: JWT_SECRET
