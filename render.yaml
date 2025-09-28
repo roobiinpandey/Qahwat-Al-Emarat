@@ -1,7 +1,7 @@
 services:
   # Backend API Service (Web Service)
   - type: web
-    name: qahwatal-emarat-api
+    name: Qahwatbackend
     runtime: node
     rootDir: server
     buildCommand: npm install
@@ -30,7 +30,7 @@ services:
       - key: PASSWORD_REQUIRE_SYMBOLS
         value: true
       - key: ALLOWED_ORIGINS
-        value: https://qahwat-al-emarat.onrender.com,https://qahwatal-emarat-frontend.onrender.com,https://qahwatal-emarat-api.onrender.com,https://*.onrender.com
+        value: https://qahwat-al-emarat.onrender.com,https://qahwatbackend.onrender.com,https://*.onrender.com
       - key: RATE_LIMIT_WINDOW_MS
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
@@ -40,10 +40,10 @@ services:
 
   # Frontend Static Site (RECOMMENDED for React apps - cheaper and faster)
   - type: static
-    name: qahwatal-emarat-frontend
+    name: Qahwat-Al-Emarat
     rootDir: frontend
     buildCommand: npm install && npm run build
     publishDir: build
     envVars:
       - key: REACT_APP_API_BASE
-        value: https://qahwatal-emarat-api.onrender.com/api
+        value: https://qahwatbackend.onrender.com/api
